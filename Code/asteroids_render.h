@@ -529,6 +529,51 @@ RenderBitmap(game_buffer *Buffer, loaded_bitmap *Bitmap, v2 Pos, v2 Offset)
 
 #include "iacaMarks.h"
 
+#define movdqu(A, B) A = _mm_loadu_si128((__m128i *)(B))
+#define movqu(A, B) A = _mm_loadu_si64((void *)(B))
+#define pshufb(A, B) A = _mm_shuffle_epi8(A, B)
+#define pshufps(A, B, C, D) A = _mm256_shuffle_ps(B, C, D)
+#define psrliq(A, B) _mm_srli_si128(A, B)
+#define pmovzx(A, B) A = _mm256_cvtepu8_epi32(B)
+#define pcvtdq2ps(A, B) A = _mm256_cvtepi32_ps(B)
+#define pcvtps2dq(A, B) A = _mm256_cvtps_epi32(B)
+#define pcvt2ps(A) _mm256_cvtepi32_ps(A)
+#define permilps(A, B, C) A = _mm256_permute_ps(B, C);
+#define perm2f128(A, B, C, D) A = _mm256_permute2f128_ps(B, C, D);
+#define pblendvps(A, B, C) A = _mm256_blendv_ps(A, B, _mm256_castsi256_ps(C))
+#define pfmaddps(A, B, C) _mm256_fmadd_ps(A, B, C)
+#define pmulps(A, B) _mm256_mul_ps(A, B)
+#define psqrtps(A) _mm256_sqrt_ps(A)
+#define psubps(A, B) _mm256_sub_ps(A, B)
+#define vpor(A, B) _mm256_or_si256(A, B)
+#define vpxor(A, B) _mm256_xor_si256(A, B)
+#define pcmpeqd(A, B) _mm256_cmpeq_epi32(A, B)
+#define vpmaxps(A, B) _mm256_max_ps(A, B)
+#define vpminps(A, B) _mm256_min_ps(A, B)
+#define vcmpps(A, B, C) _mm256_cmp_ps(A, B, C)
+#define castps_si256(A) _mm256_castps_si256(A)
+#define castsi256_si128(A) _mm256_castsi256_si128(A)
+#define vpaddd(A, B) _mm256_add_epi32(A, B)
+#define set1d(A) _mm256_set1_epi32(A)
+#define set1ps(A) _mm256_set1_ps(A)
+#define setrd(...) _mm256_setr_epi32(__VA_ARGS__)
+#define setb(...) _mm256_set_epi8(__VA_ARGS__)
+#define setrps(...) _mm256_setr_ps(__VA_ARGS__)
+#define vpslld(A, B) _mm256_slli_epi32(A, B)
+#define vpsufb(A, B) _mm256_shuffle_epi8(A, B)
+#define vinsertf128(A, B, C) _mm256_insertf128_si256(A, B, C)
+#define vextractf128(A, B) _mm256_extractf128_si256(A, B)
+#define pmaskmovd(A, B, C) _mm_maskstore_epi32(A, B, C)
+#define punpcldq(A, B) _mm256_unpacklo_epi32(A, B)
+#define punpchdq(A, B) _mm256_unpackhi_epi32(A, B)
+
+char LoadShuffle[] = 
+{
+    3,2,1,0,7,6,5,4,
+    11,10,9,8,15,14,13,12
+};
+
+
 void
 DrawLine(game_buffer *Buffer, game_memory *Memory, v2 Start, v2 End, v4 Color, f32 LineWidth)
 {
@@ -574,35 +619,26 @@ DrawLine(game_buffer *Buffer, game_memory *Memory, v2 Start, v2 End, v4 Color, f
             MaxY = (f32)Buffer->Height;
         }
         
-        
-#define M(Array, I) ((f32 *)&(Array))[I]
-#define Mi(Array, I) ((u32 *)&(Array))[I]
-#define Pi(Array, I) (u32 *)(((uint64 *)&(Array))[I])
-#define GetPointer(X,Y) (u32 *)((u8 *)Pixels + (u32)(X)*sizeof(u32) + (u32)(Y)*Buffer->Pitch);
-#define Lo4(m) *((__m128 *)&m)
-#define Hi4(m) *(((__m128 *)&m) + 1)
-#define Lo4i(m) *((__m128i *)&m)
-#define Hi4i(m) *(((__m128i *)&m) + 1)
-        
-        __m256 LineWidth_x8 = _mm256_set1_ps(LineWidth);
-        __m256 NdX = _mm256_set1_ps(Nd.x);
-        __m256 NdY = _mm256_set1_ps(Nd.y);
-        __m256 StartX_x8 = _mm256_set1_ps(Start.x);
-        __m256 StartY_x8 = _mm256_set1_ps(Start.y);
-        __m256 EndX_x8 = _mm256_set1_ps(End.x);
-        __m256 EndY_x8 = _mm256_set1_ps(End.y);
-        __m256 Color_x8 = _mm256_setr_ps(Color.a, Color.r, Color.g, Color.b, Color.a, Color.r, Color.g, Color.b);
-        __m256 Ones = _mm256_set1_ps(1.0f);
-        __m256 MinusOnes = _mm256_set1_ps(-1.0f);
-        __m256 Zeroes = _mm256_set1_ps(0.0f);
-        __m256 t = _mm256_set1_ps(Color.a); 
-        __m256 VLength_x8 = _mm256_set1_ps(VLength); 
-        __m256i XAdd = _mm256_setr_epi32(0,1,2,3,0,1,2,3);
-        __m256i YAdd = _mm256_setr_epi32(0,0,0,0,1,1,1,1);
-        __m256 OneMinusT = _mm256_sub_ps(Ones, t);
-        __m256 PerpX = _mm256_set1_ps(-Nd.y);
-        __m256 PerpY = _mm256_set1_ps(Nd.x);
-        __m256 MX = _mm256_set1_ps(MaxX);
+        __m256 LineWidth_x8 = set1ps(LineWidth);
+        __m256 NdX = set1ps(Nd.x);
+        __m256 NdY = set1ps(Nd.y);
+        __m256 StartX_x8 = set1ps(Start.x);
+        __m256 StartY_x8 = set1ps(Start.y);
+        __m256 EndX_x8 = set1ps(End.x);
+        __m256 EndY_x8 = set1ps(End.y);
+        __m256 Color_x8 = setrps(Color.b, Color.g, Color.r, Color.a, Color.b, Color.g, Color.r, Color.a);
+        __m256 Ones = set1ps(1.0f);
+        __m256 MinusOnes = set1ps(-1.0f);
+        __m256 Zeroes = set1ps(0.0f);
+        __m256i Zeroesi = set1d(0);
+        __m256 t = set1ps(Color.a); 
+        __m256 VLength_x8 = set1ps(VLength); 
+        __m256i XAdd = setrd(0,1,2,3,0,1,2,3);
+        __m256i YAdd = setrd(0,0,0,0,1,1,1,1);
+        __m256 OneMinusT = psubps(Ones, t);
+        __m256 PerpX = set1ps(-Nd.y);
+        __m256 PerpY = set1ps(Nd.x);
+        __m256 MX = set1ps(MaxX);
         for(s32 X = (s32)MinX;
             X < MaxX;
             X += 4)
@@ -617,175 +653,140 @@ DrawLine(game_buffer *Buffer, game_memory *Memory, v2 Start, v2 End, v4 Color, f
                 __m256 PixelDistance = Ones;
                 int *Ptr0 = (int *)((u8 *)Pixels + (u32)(X)*sizeof(u32) + (u32)(Y)*Buffer->Pitch);
                 int *Ptr1 = (int *)((u8 *)Ptr0 + Buffer->Pitch);
-                __m256i PixelPos = _mm256_setr_epi32(0,1,2,3,
-                                                     0+Buffer->Width,
-                                                     1+Buffer->Width,
-                                                     2+Buffer->Width,
-                                                     3+Buffer->Width);
-                
-                __m256i PixelPX = _mm256_add_epi32(_mm256_set1_epi32(X), XAdd);
-                __m256i PixelPY = _mm256_add_epi32(_mm256_set1_epi32(Y), YAdd);
-                __m256i WriteMask = _mm256_castps_si256(_mm256_cmp_ps(_mm256_sub_ps(MX, _mm256_cvtepi32_ps(PixelPX)), Zeroes, _CMP_GT_OQ));
-                __m256i PointerPixels = _mm256_i32gather_epi32(Ptr0, PixelPos, 4);
-                __m256i asd = _mm256_set1_epi32(Mi(PointerPixels,3));
-                
-                u32 PixelPtr0 = _mm256_extract_epi32(PointerPixels, 0);
-                u32 PixelPtr1 = _mm256_extract_epi32(PointerPixels, 1);
-                u32 PixelPtr2 = _mm256_extract_epi32(PointerPixels, 2);
-                u32 PixelPtr3 = _mm256_extract_epi32(PointerPixels, 3);
-                u32 PixelPtr4 = _mm256_extract_epi32(PointerPixels, 4);
-                u32 PixelPtr5 = _mm256_extract_epi32(PointerPixels, 5);
-                u32 PixelPtr6 = _mm256_extract_epi32(PointerPixels, 6);
-                u32 PixelPtr7 = _mm256_extract_epi32(PointerPixels, 7);
-                
-                __m128i Texel0 = _mm_setr_epi32(((PixelPtr0 >> 24) & 0xFF),((PixelPtr0 >> 16) & 0xFF),
-                                                ((PixelPtr0 >> 8) & 0xFF),((PixelPtr0 >> 0) & 0xFF));
-                
-                __m128i Texel1 = _mm_setr_epi32(((PixelPtr1 >> 24) & 0xFF), 
-                                                ((PixelPtr1 >> 16) & 0xFF),((PixelPtr1 >> 8) & 0xFF),
-                                                ((PixelPtr1 >> 0) & 0xFF));
-                
-                __m128i Texel2 = _mm_setr_epi32(((PixelPtr2 >> 24) & 0xFF),
-                                                ((PixelPtr2 >> 16) & 0xFF),((PixelPtr2 >> 8) & 0xFF),
-                                                ((PixelPtr2 >> 0) & 0xFF));
-                
-                __m128i Texel3 = _mm_setr_epi32(((PixelPtr3 >> 24) & 0xFF),
-                                                ((PixelPtr3 >> 16) & 0xFF),((PixelPtr3 >> 8) & 0xFF),
-                                                ((PixelPtr3 >> 0) & 0xFF));
-                
-                __m128i Texel4 = _mm_setr_epi32(((PixelPtr4 >> 24) & 0xFF),
-                                                ((PixelPtr4 >> 16) & 0xFF),((PixelPtr4 >> 8) & 0xFF),
-                                                ((PixelPtr4 >> 0) & 0xFF));
-                
-                __m128i Texel5 = _mm_setr_epi32(((PixelPtr5 >> 24) & 0xFF),
-                                                ((PixelPtr5 >> 16) & 0xFF),((PixelPtr5 >> 8) & 0xFF),
-                                                ((PixelPtr5 >> 0) & 0xFF));
-                
-                __m128i Texel6 = _mm_setr_epi32(((PixelPtr6 >> 24) & 0xFF),((PixelPtr6 >> 16) & 0xFF),((PixelPtr6 >> 8) & 0xFF),
-                                                ((PixelPtr6 >> 0) & 0xFF));
-                
-                __m128i Texel7 = _mm_setr_epi32(((PixelPtr7 >> 24) & 0xFF),
-                                                ((PixelPtr7 >> 16) & 0xFF),((PixelPtr7 >> 8) & 0xFF),
-                                                ((PixelPtr7 >> 0) & 0xFF));
+                __m256i PixelPos = setrd(0,1,2,3,
+                                         0+Buffer->Width,
+                                         1+Buffer->Width,
+                                         2+Buffer->Width,
+                                         3+Buffer->Width);
+                __m256 PixelPX, PixelPY;
+                pcvtdq2ps(PixelPX, vpaddd(set1d(X), XAdd));
+                pcvtdq2ps(PixelPY, vpaddd(set1d(Y), YAdd));
+                __m256i WriteMask = castps_si256(vcmpps(psubps(MX, PixelPX), Zeroes, _CMP_GT_OQ));
                 
                 
-                __m256 TestPixeldX = _mm256_sub_ps(_mm256_cvtepi32_ps(PixelPX), StartX_x8);
-                __m256 TestPixeldY = _mm256_sub_ps(_mm256_cvtepi32_ps(PixelPY), StartY_x8);
+                __m128i FirstRow, SecondRow;
+                __m128i FirstRowHigh, SecondRowHigh;
+                __m128i Shuffle;
                 
-                __m256 Point = _mm256_add_ps(_mm256_mul_ps(TestPixeldX, NdX),_mm256_mul_ps(TestPixeldY, NdY));
+                movdqu(Shuffle, LoadShuffle);
                 
+                // load pixels
+                movdqu(FirstRow, Ptr0);
+                movdqu(SecondRow, Ptr1);
+                
+                // Shift upper half to lower
+                FirstRowHigh = psrliq(FirstRow, 8);
+                SecondRowHigh = psrliq(SecondRow, 8);
+                
+                
+                __m256i Texel0_1, Texel2_3, Texel4_5, Texel6_7;
+                __m256 Texel01, Texel23, Texel45, Texel67;
+                // Zero extend 
+                pmovzx(Texel0_1, FirstRow);
+                pmovzx(Texel2_3, FirstRowHigh);
+                pmovzx(Texel4_5, SecondRow);
+                pmovzx(Texel6_7, SecondRowHigh);
+                
+                // convert to float
+                pcvtdq2ps(Texel01, Texel0_1);
+                pcvtdq2ps(Texel23, Texel2_3);
+                pcvtdq2ps(Texel45, Texel4_5);
+                pcvtdq2ps(Texel67, Texel6_7);
+                
+                __m256 TestPixeldX = psubps(PixelPX, StartX_x8);
+                __m256 TestPixeldY = psubps(PixelPY, StartY_x8);
+                
+                __m256 Point = pfmaddps(TestPixeldY, NdY, pmulps(TestPixeldX, NdX));
                 
                 // PointLength < 0 //
-                __m256i TotalMask = _mm256_set1_epi32(0);
+                __m256i TotalMask = set1d(0);
+                TotalMask = castps_si256(vcmpps(Point, Zeroes, _CMP_LT_OQ));
                 
+                __m256 NewPixelDistance = psqrtps(pfmaddps(TestPixeldX, TestPixeldX, pmulps(TestPixeldY,TestPixeldY)));
                 
-                TotalMask = _mm256_castps_si256(_mm256_cmp_ps(Point, Zeroes, _CMP_LT_OQ));
-                
-                __m256 NewPixelDistance = _mm256_sqrt_ps(_mm256_add_ps(_mm256_mul_ps(TestPixeldX, TestPixeldX),
-                                                                       _mm256_mul_ps(TestPixeldY,TestPixeldY)));
-                
-                PixelDistance = _mm256_or_ps(_mm256_and_ps(_mm256_castsi256_ps(TotalMask), NewPixelDistance),
-                                             _mm256_andnot_ps(_mm256_castsi256_ps(TotalMask), PixelDistance));
+                pblendvps(PixelDistance, NewPixelDistance, TotalMask);
                 
                 // PointLength > VLength //
-                __m256i Mask;
-                Mask = _mm256_castps_si256(_mm256_cmp_ps(Point, VLength_x8, _CMP_GT_OQ));
+                __m256i Mask = castps_si256(vcmpps(Point, VLength_x8, _CMP_GT_OQ));
                 
-                TotalMask = _mm256_or_si256(TotalMask, Mask);
+                TotalMask = vpor(TotalMask, Mask);
                 
-                __m256 TestLengthX = _mm256_sub_ps(_mm256_cvtepi32_ps(PixelPX), EndX_x8);
-                __m256 TestLengthY = _mm256_sub_ps(_mm256_cvtepi32_ps(PixelPY), EndY_x8);
-                NewPixelDistance = _mm256_sqrt_ps(_mm256_add_ps(_mm256_mul_ps(TestLengthX, TestLengthX), _mm256_mul_ps(TestLengthY,TestLengthY)));
+                __m256 TestLengthX = psubps(PixelPX, EndX_x8);
+                __m256 TestLengthY = psubps(PixelPY, EndY_x8);
+                NewPixelDistance = psqrtps(pfmaddps(TestLengthX, TestLengthX, pmulps(TestLengthY,TestLengthY)));
                 
-                PixelDistance = _mm256_or_ps(_mm256_and_ps(_mm256_castsi256_ps(Mask), NewPixelDistance), _mm256_andnot_ps(_mm256_castsi256_ps(Mask), PixelDistance));
+                pblendvps(PixelDistance, NewPixelDistance, Mask);
                 
-                NewPixelDistance = _mm256_add_ps(_mm256_mul_ps(TestPixeldX,PerpX),_mm256_mul_ps(TestPixeldY, PerpY));
-                NewPixelDistance = _mm256_max_ps(NewPixelDistance, _mm256_mul_ps(NewPixelDistance, MinusOnes));
+                NewPixelDistance = pfmaddps(TestPixeldX,PerpX, pmulps(TestPixeldY, PerpY));
+                NewPixelDistance = vpmaxps(NewPixelDistance, pmulps(NewPixelDistance, MinusOnes));
                 
-                TotalMask = _mm256_xor_si256(TotalMask, _mm256_cmpeq_epi32(_mm256_cvtps_epi32(Zeroes), _mm256_cvtps_epi32(Zeroes)));
-                PixelDistance = _mm256_or_ps(_mm256_and_ps(_mm256_castsi256_ps(TotalMask), NewPixelDistance), _mm256_andnot_ps(_mm256_castsi256_ps(TotalMask), PixelDistance));
-                PixelDistance = _mm256_sub_ps(PixelDistance, _mm256_sub_ps(LineWidth_x8, Ones));
+                TotalMask = vpxor(TotalMask, pcmpeqd(Zeroesi, Zeroesi));
+                pblendvps(PixelDistance, NewPixelDistance, TotalMask);
                 
-                PixelDistance = _mm256_max_ps(PixelDistance, Zeroes);
-                PixelDistance = _mm256_mul_ps(PixelDistance,PixelDistance);
-                PixelDistance = _mm256_min_ps(PixelDistance, Ones);
                 
-                __m256i PixelDistancei = _mm256_cvtps_epi32(PixelDistance);
-                __m256 OneMinusPixelDistances = _mm256_sub_ps(Ones, PixelDistance);
-                __m256i OneMinusPixelDistancesi = _mm256_cvtps_epi32(_mm256_sub_ps(Ones, PixelDistance));
+                PixelDistance = psubps(PixelDistance, psubps(LineWidth_x8, Ones));
+                PixelDistance = vpmaxps(PixelDistance, Zeroes);
+                PixelDistance = pmulps(PixelDistance,PixelDistance);
+                PixelDistance = vpminps(PixelDistance, Ones);
+                
                 __m256 t01, t23, t45, t67;
                 __m256 pd01, pd23, pd45, pd67;
-                __m256 Texel01, Texel23, Texel45, Texel67;
-                Texel01 = Texel23 = Texel45 = Texel67 = {};
-                pd01 = pd23 = pd45 = pd67 = {};
-                t01 = t23 = t45 = t67 = {};
+                __m256 Shuffle0_4, Shuffle1_5, Shuffle2_6, Shuffle3_7;
+                permilps(Shuffle0_4, PixelDistance, 0);
+                permilps(Shuffle1_5, PixelDistance, 0b01010101);
+                permilps(Shuffle2_6, PixelDistance, 0b10101010);
+                permilps(Shuffle3_7, PixelDistance, 0b11111111);
                 
-                Lo4(Texel01) = _mm_cvtepi32_ps(Texel0); 
-                Hi4(Texel01) = _mm_cvtepi32_ps(Texel1); 
-                Lo4(Texel23) = _mm_cvtepi32_ps(Texel2); 
-                Hi4(Texel23) = _mm_cvtepi32_ps(Texel3); 
-                Lo4(Texel45) = _mm_cvtepi32_ps(Texel4); 
-                Hi4(Texel45) = _mm_cvtepi32_ps(Texel5); 
-                Lo4(Texel67) = _mm_cvtepi32_ps(Texel6);
-                Hi4(Texel67) = _mm_cvtepi32_ps(Texel7);
+                perm2f128(pd01, Shuffle0_4, Shuffle1_5, 0b100000);
+                perm2f128(pd23, Shuffle2_6, Shuffle3_7, 0b100000);
+                perm2f128(pd45, Shuffle0_4, Shuffle1_5, 0b110001);
+                perm2f128(pd67, Shuffle2_6, Shuffle3_7, 0b110001);
                 
-                Lo4(t01) = _mm_set1_ps(M(OneMinusPixelDistances, 0)); 
-                Hi4(t01) = _mm_set1_ps(M(OneMinusPixelDistances, 1)); 
-                Lo4(t23) = _mm_set1_ps(M(OneMinusPixelDistances, 2));
-                Hi4(t23) = _mm_set1_ps(M(OneMinusPixelDistances, 3));
-                Lo4(t45) = _mm_set1_ps(M(OneMinusPixelDistances, 4));
-                Hi4(t45) = _mm_set1_ps(M(OneMinusPixelDistances, 5));
-                Lo4(t67) = _mm_set1_ps(M(OneMinusPixelDistances, 6));
-                Hi4(t67) = _mm_set1_ps(M(OneMinusPixelDistances, 7));
+                t01 = psubps(Ones, pd01);
+                t23 = psubps(Ones, pd23);
+                t45 = psubps(Ones, pd45);
+                t67 = psubps(Ones, pd67);
                 
-                
-                Lo4(pd01) = _mm_set1_ps(M(PixelDistance, 0)); 
-                Hi4(pd01) = _mm_set1_ps(M(PixelDistance, 1)); 
-                Lo4(pd23) = _mm_set1_ps(M(PixelDistance, 2));
-                Hi4(pd23) = _mm_set1_ps(M(PixelDistance, 3));
-                Lo4(pd45) = _mm_set1_ps(M(PixelDistance, 4));
-                Hi4(pd45) = _mm_set1_ps(M(PixelDistance, 5));
-                Lo4(pd67) = _mm_set1_ps(M(PixelDistance, 6));
-                Hi4(pd67) = _mm_set1_ps(M(PixelDistance, 7));
-                
-                Texel01 = _mm256_add_ps(_mm256_mul_ps(t01, _mm256_add_ps(_mm256_mul_ps(OneMinusT, Texel01), _mm256_mul_ps(t, Color_x8))), _mm256_mul_ps(pd01, Texel01));
-                Texel23 = _mm256_add_ps(_mm256_mul_ps(t23, _mm256_add_ps(_mm256_mul_ps(OneMinusT, Texel23), _mm256_mul_ps(t, Color_x8))), _mm256_mul_ps(pd23, Texel23));
-                Texel45 = _mm256_add_ps(_mm256_mul_ps(t45, _mm256_add_ps(_mm256_mul_ps(OneMinusT, Texel45), _mm256_mul_ps(t, Color_x8))), _mm256_mul_ps(pd45, Texel45));
-                Texel67 = _mm256_add_ps(_mm256_mul_ps(t67, _mm256_add_ps(_mm256_mul_ps(OneMinusT, Texel67), _mm256_mul_ps(t, Color_x8))), _mm256_mul_ps(pd67, Texel67));
-                
-                __m256i a01 = _mm256_cvtps_epi32(Texel01);
-                __m256i a23 = _mm256_cvtps_epi32(Texel23);
-                __m256i a45 = _mm256_cvtps_epi32(Texel45);
-                __m256i a67 = _mm256_cvtps_epi32(Texel67);
-                
-                __m256i shift0 = _mm256_slli_epi32(a01, 0);
-                __m256i shift1 = _mm256_slli_epi32(a23, 8);
-                __m256i shift2 = _mm256_slli_epi32(a45, 16);
-                __m256i shift3 = _mm256_slli_epi32(a67, 24);
-                
-                shift0 = _mm256_or_si256(shift3, _mm256_or_si256(shift2, _mm256_or_si256(shift1, shift0)));
+                Texel01 = pfmaddps(t01, pfmaddps(OneMinusT, Texel01, pmulps(t, Color_x8)), pmulps(pd01, Texel01));
+                Texel23 = pfmaddps(t23, pfmaddps(OneMinusT, Texel23, pmulps(t, Color_x8)), pmulps(pd23, Texel23));
+                Texel45 = pfmaddps(t45, pfmaddps(OneMinusT, Texel45, pmulps(t, Color_x8)), pmulps(pd45, Texel45));
+                Texel67 = pfmaddps(t67, pfmaddps(OneMinusT, Texel67, pmulps(t, Color_x8)), pmulps(pd67, Texel67));
                 
                 
                 
-                __m256i shiftTest = _mm256_shuffle_epi8(shift0, _mm256_set_epi8(19,23,27,31,
-                                                                                18,22,26,30,
-                                                                                17,21,25,29,
-                                                                                16,20,24,28,
-                                                                                3,7,11,15,
-                                                                                2,6,10,14,
-                                                                                1,5,9,13,
-                                                                                0,4,8,12));
+                __m256i a01, a23, a45, a67;
+                pcvtps2dq(a01, Texel01);
+                pcvtps2dq(a23, Texel23);
+                pcvtps2dq(a45, Texel45);
+                pcvtps2dq(a67, Texel67);
+                
+                
+                __m256i shift0 = vpslld(a01, 0);
+                __m256i shift1 = vpslld(a23, 8);
+                __m256i shift2 = vpslld(a45, 16);
+                __m256i shift3 = vpslld(a67, 24);
+                shift0 = vpor(shift3, vpor(shift2, vpor(shift1, shift0)));
+                
+                
+                __m256i shiftTest = vpsufb(shift0, setb(31,27,23,19,
+                                                        30,26,22,18,
+                                                        29,25,21,17,
+                                                        28,24,20,16,
+                                                        15,11,7,3,
+                                                        14,10,6,2,
+                                                        13,9,5,1,
+                                                        12,8,4,0));
+                
                 __m256i temp0 = {};
                 __m256i temp1 = {};
                 __m256i temp2 = {};
                 
-                temp0 = _mm256_insertf128_si256(temp0, _mm256_extractf128_si256(shiftTest, 1),0);
+                temp0 = vinsertf128(temp0, vextractf128(shiftTest, 1),0);
+                temp1 = punpcldq(shiftTest, temp0);
+                temp2 = punpchdq(shiftTest, temp0);
                 
-                temp1 = _mm256_unpacklo_epi32(shiftTest, temp0);
-                temp2 = _mm256_unpackhi_epi32(shiftTest, temp0);
-                
-                _mm_maskstore_epi32(Ptr0, _mm256_extractf128_si256(WriteMask, 0),_mm256_castsi256_si128(temp1));
-                _mm_maskstore_epi32(Ptr1, _mm256_extractf128_si256(WriteMask, 0),_mm256_castsi256_si128(temp2));
+                pmaskmovd(Ptr0, vextractf128(WriteMask, 0), castsi256_si128(temp1));
+                pmaskmovd(Ptr1, vextractf128(WriteMask, 0), castsi256_si128(temp2));
                 
                 END_COUNTER(PerPixel);
             }
