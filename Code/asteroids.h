@@ -186,7 +186,6 @@ struct coordinate_basis
     v2 Y;
     f32 Angle;
     f32 Scale;
-    //loaded_bitmap *Texture;
 };
 
 struct entity
@@ -294,7 +293,7 @@ global_variable platform_print_debug_string *PlatformPrintString;
 #include "asteroids_assets.cpp"
 #include "asteroids_collision.h"
 #include "asteroids_entity.h"
-#include "vector_graphics.h"
 #include "asteroids_render.h"
+#include "vector_graphics.h"
 #define ASTEROIDS_H
 #endif

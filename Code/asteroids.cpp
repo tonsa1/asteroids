@@ -132,8 +132,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Spawns[15] = V2(13.0f,OverY);
         Spawns[16] = V2(7.0f,OverY);
         
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
 #if 0
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
@@ -229,27 +229,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     
                     f32 Boost = 14.0f;
                     
-                    if(TestEntity->P.x < 2.0f)
+                    if(TestEntity->P.x < 3.0f)
                     {
-                        TestEntity->ddP += Boost*V2(2.0f - Absolute(TestEntity->P.x), 0.0f);
+                        TestEntity->ddP += Boost*V2(3.0f - Absolute(TestEntity->P.x), 0.0f);
                     }
-                    
-                    if(TestEntity->P.x > GameState->GameWorld->ChunkDim.x - 1.5f)
+                    f32 Val = 3.0f;
+                    if(TestEntity->P.x > GameState->GameWorld->ChunkDim.x - Val)
                     {
                         
                         TestEntity->ddP -=
-                            Boost*V2(TestEntity->P.x - (GameState->GameWorld->ChunkDim.x - 1.5f), 0.0f);
+                            Boost*V2(TestEntity->P.x - (GameState->GameWorld->ChunkDim.x - Val), 0.0f);
                     }
                     
-                    if(TestEntity->P.y < 2.0f)
+                    if(TestEntity->P.y < 3.0f)
                     {
-                        TestEntity->ddP += Boost*V2(0.0f, 2.0f - Absolute(TestEntity->P.y));
+                        TestEntity->ddP += Boost*V2(0.0f, 3.0f - Absolute(TestEntity->P.y));
                     }
                     
-                    if(TestEntity->P.y > GameState->GameWorld->ChunkDim.y - 1.5f)
+                    if(TestEntity->P.y > GameState->GameWorld->ChunkDim.y - 3.0f)
                     {
                         TestEntity->ddP -= 
-                            Boost*V2(0.0f, TestEntity->P.y - (GameState->GameWorld->ChunkDim.y - 1.5f));
+                            Boost*V2(0.0f, TestEntity->P.y - (GameState->GameWorld->ChunkDim.y - 3.0f));
                     }
                 } break;
             }
@@ -297,21 +297,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     if (PlayerEntity)
     {
-        entity *Entity = Asteroid;
-        line_mesh *Mesh = GetLineMesh(TranState->Assets, Entity->GameAssetID);
+        //entity *Entity = Asteroid;
         
+        entity TempEntity = *PlayerEntity;
         
+#if 0
+        game_asset_id ID = Entity->GameAssetID;
+        ID = GAI_LineMeshBox;
+        line_mesh *Mesh = GetLineMesh(TranState->Assets, ID);
+#endif
         
-        u32 EdgeCount = Mesh->LineCount;
-        edge *Edges = PushArray(TempMem.Arena, EdgeCount, edge);
-        edge **SortedEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
-        edge **ActiveEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
-        //CreateEdges(Points, PointCount, Edges, SortedEdges, EdgeCount);
-        u32 NewCount = CreateEdges(Mesh, Entity, Edges, SortedEdges, EdgeCount, GameBuffer->MetersToPixels);
-        SortEdges(SortedEdges, NewCount);
+        //TempEntity.Basis.Angle = 5.9f;
         
-        
-        DrawShape(GameBuffer, SortedEdges, ActiveEdges, NewCount);
+        CreateMmozeiko(TempMem, &TempEntity, GameBuffer);
     }
     
     //~ RENDER
@@ -326,8 +324,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         switch(TestEntity->EntityType)
         {
             case EntityType_Bullet:
-            case EntityType_Player:
-            case EntityType_Asteroid:
+            //case EntityType_Player:
+            //case EntityType_Asteroid:
             {
                 TestEntityLineMesh = GetLineMesh(TranState->Assets, TestEntity->GameAssetID);
                 if(TestEntityLineMesh)
@@ -390,3 +388,4 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     CheckMemory(&GameState->Arena);
     CheckMemory(&TranState->TranArena);
 } 
+

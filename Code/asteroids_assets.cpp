@@ -136,6 +136,15 @@ LoadAsset(game_assets *Assets, game_asset_id ID, asset_slot *Slot)
     }
 }
 
+internal void
+SetupLineMesh(game_assets *Assets, asset_slot *Slot, u32 LineCount)
+{
+    Slot->LineMesh = PushStruct(&Assets->Arena, line_mesh);
+    line_mesh *LineMesh = Slot->LineMesh;
+    LineMesh->LineCount = LineCount;
+    LineMesh->Lines = PushArray(&Assets->Arena, LineCount, line);
+}
+
 inline line_mesh *GetLineMesh(game_assets *Assets, game_asset_id ID)
 {
     asset_slot *Slot = Assets->LoadedAssets + ID;
@@ -145,15 +154,45 @@ inline line_mesh *GetLineMesh(game_assets *Assets, game_asset_id ID)
         {
             case GAI_LineMeshBullet:
             {
-                Slot->LineMesh = PushStruct(&Assets->Arena, line_mesh);
+                SetupLineMesh(Assets, Slot, 4);
                 line_mesh *LineMesh = Slot->LineMesh;
-                LineMesh->LineCount = 4;
-                LineMesh->Lines = PushArray(&Assets->Arena, LineMesh->LineCount, line);
+                
                 LineMesh->Lines[0] = CreateLine(V2(-0.5f, -0.0f), V2(-0.0f, 0.5f));
                 LineMesh->Lines[1] = CreateLine(LineMesh->Lines[0].End, V2(0.5f, 0.0f));
                 LineMesh->Lines[2] = CreateLine(LineMesh->Lines[1].End, V2(0.0f, -0.5f));;
-                LineMesh->Lines[3] = CreateLine(LineMesh->Lines[2].End,
-                                                LineMesh->Lines[0].Start);
+                LineMesh->Lines[3] = CreateLine(LineMesh->Lines[2].End,LineMesh->Lines[0].Start);
+                Slot->State = AssetState_Loaded;
+            } break;
+            
+            case GAI_LineMeshBox:
+            {
+                SetupLineMesh(Assets, Slot, 8);
+                line_mesh *LineMesh = Slot->LineMesh;
+                
+                
+                LineMesh->Lines[0] = CreateLine(V2(-0.5f, 0.5f), V2(0.5f, 0.5f));
+                LineMesh->Lines[1] = CreateLine(LineMesh->Lines[0].End, V2(0.5f, -0.5f));
+                LineMesh->Lines[2] = CreateLine(LineMesh->Lines[1].End, V2(-0.5f, -0.5f));;
+                LineMesh->Lines[3] = CreateLine(LineMesh->Lines[2].End,LineMesh->Lines[0].Start);
+                
+#if 1
+                LineMesh->Lines[4] = LineMesh->Lines[0];
+                LineMesh->Lines[4].Start *= 0.7f;
+                LineMesh->Lines[4].End *= 0.7f;
+                
+                LineMesh->Lines[5] = LineMesh->Lines[1];
+                LineMesh->Lines[5].Start *= 0.7f;
+                LineMesh->Lines[5].End *= 0.7f;
+                
+                LineMesh->Lines[6] = LineMesh->Lines[2];
+                LineMesh->Lines[6].Start *= 0.7f;
+                LineMesh->Lines[6].End *= 0.7f;
+                
+                LineMesh->Lines[7] = LineMesh->Lines[3];
+                LineMesh->Lines[7].Start *= 0.7f;
+                LineMesh->Lines[7].End *= 0.7f;
+#endif
+                
                 Slot->State = AssetState_Loaded;
             } break;
             
@@ -161,20 +200,16 @@ inline line_mesh *GetLineMesh(game_assets *Assets, game_asset_id ID)
             {
                 if (ID >= GAI_LineMeshAsteroidStart && ID <= GAI_LineMeshAsteroidEnd)
                 {
-                    Slot->LineMesh = PushStruct(&Assets->Arena, line_mesh);
+                    SetupLineMesh(Assets, Slot, 5);
                     line_mesh *LineMesh = Slot->LineMesh;
                     
                     f32 Scale = 0.2f;
-                    
                     // TODO(Tony): Randomize asteroid line count
-                    LineMesh->LineCount = 5;
-                    LineMesh->Lines = PushArray(&Assets->Arena, LineMesh->LineCount, line);
                     LineMesh->Lines[0] = CreateLine(V2(-0.5f, -0.5f) + RandomOffsetBilateral(Scale), V2(-0.4f, 0.4f) + RandomOffsetBilateral(Scale));
                     LineMesh->Lines[1] = CreateLine(LineMesh->Lines[0].End, V2(0.3f, 0.5f) + RandomOffsetBilateral(Scale));
                     LineMesh->Lines[2] = CreateLine(LineMesh->Lines[1].End, V2(0.6f, -0.1f) + RandomOffsetBilateral(Scale));;
                     LineMesh->Lines[3] = CreateLine(LineMesh->Lines[2].End, V2(0.1f, -0.6f) + RandomOffsetBilateral(Scale));;
-                    LineMesh->Lines[4] = CreateLine(LineMesh->Lines[3].End,
-                                                    LineMesh->Lines[0].Start);
+                    LineMesh->Lines[4] = CreateLine(LineMesh->Lines[3].End,LineMesh->Lines[0].Start);
                     Slot->State = AssetState_Loaded;
                 }
             } break;

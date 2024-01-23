@@ -1,10 +1,47 @@
 #if !defined(ASTEROIDS_RENDER_H)
 
+struct edge
+{
+    f32 XStart;
+    f32 YStart;
+    
+    f32 XEnd;
+    f32 YEnd;
+    
+    f32 XIntersection;
+    
+    f32 Slope;
+    
+    // 1 = slope goes from left to right
+    // 0 = slope goes from right to left
+    b32 Direction;
+};
 
-
-
-
-
+void SortEdgesX(edge **Edges, u32 MaxEdgeCount)
+{
+    b32 IsSorted = true;
+    do 
+    {
+        IsSorted = true;
+        for (u32 Index = 0;
+             Index < MaxEdgeCount - 1;
+             ++Index)
+        {
+            u32 FirstIndex = Index;
+            u32 NextIndex = Index + 1;
+            
+            edge *FirstEdge = Edges[FirstIndex];
+            edge *NextEdge = Edges[NextIndex];
+            
+            if (NextEdge->XIntersection < FirstEdge->XIntersection)
+            {
+                IsSorted = false;
+                Edges[FirstIndex] = NextEdge;
+                Edges[NextIndex] = FirstEdge;
+            }
+        }
+    } while (!IsSorted);
+}
 
 internal void
 ResetBufferColored(game_buffer *Buffer)
@@ -968,21 +1005,22 @@ DrawShape(game_buffer *Buffer, edge **SortedEdges, edge **ActiveEdges, u32 Sorte
         }
         
         // There should never be an uneven amount of lines
-        Assert((ActiveCount % 2) == 0);
+        //Assert((ActiveCount % 2) == 0);
         
+        
+        SortEdgesX(ActiveEdges, ActiveCount);
         
         // Draw
         // TODO(Tony): Finish OddEvenFill
         // TODO(Tony): Add WindingFill
+        for(u32 Index = 0;
+            Index < ActiveCount - 1;
+            Index += 2)
         {
-            u32 Start = (u32)ActiveEdges[0]->XIntersection;
-            u32 End = (u32)ActiveEdges[1]->XIntersection; 
-            
-            if (End < Start)
-            {
-                Start = End;
-                End = (u32)ActiveEdges[0]->XIntersection;
-            }
+            u32 FirstIndex = Index;
+            u32 NextIndex = Index + 1;
+            u32 Start = (u32)ActiveEdges[FirstIndex]->XIntersection;
+            u32 End = (u32)ActiveEdges[NextIndex]->XIntersection; 
             
             End = End < Buffer->Width ? End : Buffer->Width;
             Start = Start >= 0 ? Start : 0;

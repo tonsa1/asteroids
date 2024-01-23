@@ -8,6 +8,7 @@ enum game_asset_id
     GAI_LineMeshAsteroidEnd = 20,
     GAI_LineMeshPlayer,
     GAI_LineMeshBullet,
+    GAI_LineMeshBox,
     GAI_LineMeshEnd,
     
     GAI_BitmapStart,
