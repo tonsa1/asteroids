@@ -49,7 +49,7 @@ LineMeshCollisionCheck(game_state *GameState, entity *TestEntity, world_chunk *C
                        IsFlagSet(TestEntity->CollisionFlags, HitEntity->EntityType))
                     {
                         line_mesh *HitEntityLineMesh = 
-                            GetLineMesh(Assets, GAI_LineMeshAsteroid);
+                            GetLineMesh(Assets, HitEntity->GameAssetID);
                         u32 CollideCountD = 0;
                         
                         for(u32 HitLineIndex = 0;

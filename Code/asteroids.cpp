@@ -1,9 +1,20 @@
 #include "asteroids.h"
-#include "asteroids_assets.cpp"
 
+struct m4x4
+{
+    f32 m[4][4];
+};
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+    m4x4 test = {
+        1,2,3,4,
+        1,2,3,4,
+        1,2,3,4,
+        1,2,3,4,
+    };
+    
+    
     PlatformAddWorkQueueEntry = Memory->PlatformAddWorkQueueEntry;
     PlatformDoNextWorkQueueEntry = Memory->PlatformDoNextWorkQueueEntry;
     PlatformCompleteAllWorkQueueWork = Memory->PlatformCompleteAllWorkQueueWork;
@@ -25,8 +36,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v2 ScreenCenterInMeters = ScreenCenter/MetersToPixels;
     GameState->CameraOffsetForFrame = V2(0,0);
     
-    entity *PlayerEntity;
     
+    entity *PlayerEntity = 0;
+    //~ INIT
     if(!Memory->IsInitialized)
     {
         InitializeArena(&GameState->Arena, (Memory->PermanentStorageSize - sizeof(game_state)),
@@ -120,12 +132,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Spawns[15] = V2(13.0f,OverY);
         Spawns[16] = V2(7.0f,OverY);
         
-#if 1
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
-        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
+#if 0
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
+        CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
 #endif
         
         GameState->CameraOffsetForFrame = -ScreenCenterInMeters;
@@ -154,7 +166,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     
     temporary_memory TempMem = BeginTemporaryMemory(&TranState->TranArena);
-    EndTemporaryMemory(TempMem);
+    
     
     ResetBufferBlack(GameBuffer);
     
@@ -166,8 +178,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         World->BulletCooldown = 0.0f;
     }
     world_chunk *CameraChunk = GetWorldChunk(World, GameState->CameraEntity.Chunk);
-    
-    // UPDATE VELOCITY
+    //~ UPDATE VELOCITY
     for(u32 TestEntityIndex = 0;
         TestEntityIndex < CameraChunk->EntityCount;
         ++TestEntityIndex)
@@ -179,6 +190,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 case EntityType_Player:
                 {
+                    PlayerEntity = TestEntity;
                     v2 PlayerddP = {};
                     f32 PlayerSpeed = 5.0f; // m/s^2
                     f32 Multiplier = 38.0f;
@@ -244,10 +256,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
-    
+    entity *Asteroid = 0;
     u32 CurrentEntityCount = 0;
-    
-    // MOVE ENTITIES
+    //~ MOVE ENTITIES
     for(u32 TestEntityIndex = 0;
         TestEntityIndex < CameraChunk->EntityCount;
         ++TestEntityIndex)
@@ -267,6 +278,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 case EntityType_Asteroid:
                 {
                     MoveAsteroid(GameState,TranState->Assets, World, CameraChunk, TestEntity->EntityID, dt);
+                    TestEntity->P = V2(5,5);
+                    Asteroid = TestEntity;
                 }break;
                 
                 case EntityType_Bullet:
@@ -282,11 +295,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
+    if (PlayerEntity)
+    {
+        entity *Entity = Asteroid;
+        line_mesh *Mesh = GetLineMesh(TranState->Assets, Entity->GameAssetID);
+        
+        
+        
+        u32 EdgeCount = Mesh->LineCount;
+        edge *Edges = PushArray(TempMem.Arena, EdgeCount, edge);
+        edge **SortedEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
+        edge **ActiveEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
+        //CreateEdges(Points, PointCount, Edges, SortedEdges, EdgeCount);
+        u32 NewCount = CreateEdges(Mesh, Entity, Edges, SortedEdges, EdgeCount, GameBuffer->MetersToPixels);
+        SortEdges(SortedEdges, NewCount);
+        
+        
+        DrawShape(GameBuffer, SortedEdges, ActiveEdges, NewCount);
+    }
     
+    //~ RENDER
     
-    // RENDER
-    
-    f32 LineWidth = .75f;
+    f32 LineWidth = 1.0f;
     for(u32 TestEntityIndex = 0;
         TestEntityIndex < CameraChunk->EntityCount;
         ++TestEntityIndex)
@@ -302,36 +332,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 TestEntityLineMesh = GetLineMesh(TranState->Assets, TestEntity->GameAssetID);
                 if(TestEntityLineMesh)
                 {
-                    if(TestEntity->EntityType == EntityType_Bullet)
-                    {
-                        if(TestEntity->CollisionEntityType == EntityType_Asteroid)
-                        {
-                            TestEntity->Color = V4(0,1,0,1);
-                        }
-                        else
-                        {
-                            TestEntity->Color = V4(1,1,1,1);
-                        }
-                    }
                     
-                    
+#if 1
                     for(u32 LineIndex = 0;
                         LineIndex < TestEntityLineMesh->LineCount;
                         ++LineIndex)
                     {
                         line Line = TestEntityLineMesh->Lines[LineIndex];
-                        v2 TempStart = (TestEntity->P + Line.Start.x*TestEntity->Basis.X +
-                                        Line.Start.y*TestEntity->Basis.Y);
                         
-                        v2 TempEnd = (TestEntity->P + Line.End.x*TestEntity->Basis.X + Line.End.y*TestEntity->Basis.Y);
-                        
+                        v2 Start = PointToWorld(TestEntity, Line.Start);
+                        v2 End= PointToWorld(TestEntity, Line.End);
                         DrawLine(GameBuffer, Memory,
-                                 TempStart,
-                                 TempEnd,
+                                 Start,
+                                 End,
                                  TestEntity->Color,
                                  LineWidth);
                         
                     }
+#endif
                 }
             } break;
             case EntityType_Sprite:
@@ -354,26 +372,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ++LineIndex)
                 {
                     line Line = TestEntityLineMesh->Lines[LineIndex];
+                    v2 Start = (TestEntity->P + Line.Start.x*TestEntity->Basis.X + Line.Start.y*TestEntity->Basis.Y);
+                    v2 End = (TestEntity->P + Line.End.x*TestEntity->Basis.X + Line.End.y*TestEntity->Basis.Y);
                     DrawLine(GameBuffer, Memory,
-                             (TestEntity->P + Line.Start.x*TestEntity->Basis.X + Line.Start.y*TestEntity->Basis.Y),
-                             (TestEntity->P + Line.End.x*TestEntity->Basis.X + Line.End.y*TestEntity->Basis.Y),
+                             Start,
+                             End,
                              Line.Color,
                              LineWidth);
                 }
 #endif
             } break;
         }
-        
-        if(TestEntity->EntityType != EntityType_Camera)
-        {
-            //TestEntity->P -= GameState->CameraOffsetForFrame;
-            //RenderRect(GameBuffer, TestEntity->P,
-            //           TestEntity->Dim, V4(1,1,1,1));
-        }
     }
-    
     RenderBufferToScreen(Buffer, GameBuffer);
     
+    EndTemporaryMemory(TempMem);
     CheckMemory(&GameState->Arena);
     CheckMemory(&TranState->TranArena);
 } 

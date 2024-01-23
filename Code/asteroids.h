@@ -138,7 +138,7 @@ struct bezier
 struct line_mesh
 {
     u32 LineCount;
-    line Lines[16];
+    line *Lines;
 };
 
 #include "asteroids_assets.h"
@@ -278,6 +278,8 @@ struct game_state
     u32 AsteroidSpawnCount;
     v2 *AsteroidSpawns;
     u32 NextID;
+    
+    v2 *Points;
 };
 
 world ResetWorld;
@@ -287,11 +289,12 @@ global_variable platform_do_next_work_queue_entry *PlatformDoNextWorkQueueEntry;
 global_variable platform_complete_all_work_queue_work *PlatformCompleteAllWorkQueueWork;
 global_variable debug_platform_read_entire_file *DEBUGReadEntireFile;
 global_variable platform_print_debug_string *PlatformPrintString;
-inline line_mesh *GetLineMesh(game_assets *Assets, game_asset_id ID);
 
-#include "asteroids_render.h"
 #include "asteroids_world.h"
+#include "asteroids_assets.cpp"
 #include "asteroids_collision.h"
 #include "asteroids_entity.h"
+#include "vector_graphics.h"
+#include "asteroids_render.h"
 #define ASTEROIDS_H
 #endif

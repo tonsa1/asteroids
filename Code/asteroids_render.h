@@ -1,115 +1,10 @@
 #if !defined(ASTEROIDS_RENDER_H)
 
-#pragma pack(push,1)
-struct bitmap_header
-{
-    u16 FileType;
-    u32 FileSize;
-    u16 Reserved1;
-    u16 Reserved2;
-    u32 BitmapOffset;
-    u32 Size;
-    s32 Width;
-    s32 Height;
-    u16 Planes;
-    u16 BitsPerPixel;
-    u32 Compression;
-    u32 SizeOfBitmap;
-    s32 HorzResolution;
-    s32 VertResolution;
-    u32 ColorsUsed;
-    u32 ColorsImportant;
-    
-    u32 RedMask;
-    u32 GreenMask;
-    u32 BlueMask;
-};
-#pragma pack(pop)
 
-struct bit_scan_result
-{
-    b32 Found;
-    u32 Index;
-};
 
-bit_scan_result
-FindLeastSignificantBit(u32 Bit)
-{
-    bit_scan_result Result = {};
-    
-    for(u32 Index = 0;
-        Index < 32;
-        ++Index)
-    {
-        if((1 << Index) & Bit)
-        {
-            Result.Found = true;
-            Result.Index = Index;
-            break;
-        }
-    }
-    
-    return Result;
-}
 
-internal loaded_bitmap
-DEBUGLoadBMP(debug_platform_read_entire_file *ReadEntireFile, char *Filename)
-{
-    loaded_bitmap Bitmap = {};
-    
-    debug_read_file_result ReadResult = ReadEntireFile(Filename);
-    if(ReadResult.ContentsSize != 0)
-    {
-        bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
-        Bitmap.Pixels = (u8 *)ReadResult.Contents + Header->BitmapOffset;
-        Bitmap.Width = Header->Width;
-        Bitmap.Height = Header->Height;   
-        
-        u32 RedMask = Header->RedMask;
-        u32 GreenMask = Header->GreenMask;
-        u32 BlueMask = Header->BlueMask;
-        u32 AlphaMask = ~(RedMask|GreenMask|BlueMask);
-        
-        bit_scan_result AlphaScan = FindLeastSignificantBit(AlphaMask);
-        bit_scan_result RedScan = FindLeastSignificantBit(RedMask);
-        bit_scan_result GreenScan = FindLeastSignificantBit(GreenMask);
-        bit_scan_result BlueScan = FindLeastSignificantBit(BlueMask);
-        
-        u32 *Pixels = (u32 *)Bitmap.Pixels;
-        for(u32 Y = 0;
-            Y < (u32)Bitmap.Height;
-            ++Y)
-        {
-            for(u32 X = 0;
-                X < (u32)Bitmap.Width;
-                ++X)
-            {
-                u32 NewPixel = *Pixels;
-                
-                f32 R = (f32)((NewPixel & RedMask) >> RedScan.Index);
-                f32 G = (f32)((NewPixel & GreenMask) >>GreenScan.Index);
-                f32 B = (f32)((NewPixel & BlueMask) >> BlueScan.Index);
-                f32 A = (f32)((NewPixel & AlphaMask) >> AlphaScan.Index);
-                f32 AN = (A / 255.0f);
-                
-                R = R*AN;
-                G = G*AN;
-                B = B*AN;
-                
-                *Pixels++ = (((u32)(A + 0.5f) << 24) |
-                             ((u32)(R + 0.5f) << 16) |
-                             ((u32)(G + 0.5f) << 8) |
-                             ((u32)(B + 0.5f) << 0));
-                
-                
-                
-            }
-        }
-    }
-    Bitmap.Pitch = -Bitmap.Width*sizeof(u32);
-    Bitmap.Pixels = (u8 *)Bitmap.Pixels - Bitmap.Pitch*(Bitmap.Height - 1); 
-    return Bitmap;
-}
+
+
 
 internal void
 ResetBufferColored(game_buffer *Buffer)
@@ -920,7 +815,7 @@ DrawLineSlowly(game_buffer *Buffer, game_memory *Memory, v2 Start, v2 End, v4 Co
     END_COUNTER(DrawLine)
 }
 
-#if 0
+#if 1
 void
 DrawBezier(game_buffer *Buffer, game_memory *Memory)
 {
@@ -1021,6 +916,120 @@ DrawBezier(game_buffer *Buffer, game_memory *Memory)
                               ((u32)(TexelA.b + 0.5f) << 0));
             }
             
+        }
+    }
+}
+
+void
+DrawShape(game_buffer *Buffer, edge **SortedEdges, edge **ActiveEdges, u32 SortedCount)
+{
+    u32 YStart = (u32)SortedEdges[0]->YStart;
+    
+    u32 FirstActiveIndex = 0;
+    u32 ActiveCount = 0;
+    
+    YStart = YStart >= 0 ? YStart : 0;
+    
+    u8 *Pixels = (u8 *)Buffer->Memory;
+    for(u32 Y = YStart;
+        Y < Buffer->Height;
+        ++Y)
+    {
+        u32 *PixelRow = (u32 *)(Pixels + (Y * Buffer->Pitch));
+        f32 CurrentY = (f32)Y + 0.5f;
+        
+        // add edges that are now active
+        {
+            for (u32 Index = FirstActiveIndex;
+                 Index < SortedCount;
+                 ++Index)
+            {
+                edge *Edge = SortedEdges[Index];
+                
+                if (CurrentY > Edge->YStart)
+                {
+                    ++FirstActiveIndex;
+                    if (CurrentY < Edge->YEnd)
+                    {
+                        ActiveEdges[ActiveCount++] = Edge;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        
+        // skip if no edges are active.
+        if (ActiveCount == 0)
+        {
+            continue;
+        }
+        
+        // There should never be an uneven amount of lines
+        Assert((ActiveCount % 2) == 0);
+        
+        
+        // Draw
+        // TODO(Tony): Finish OddEvenFill
+        // TODO(Tony): Add WindingFill
+        {
+            u32 Start = (u32)ActiveEdges[0]->XIntersection;
+            u32 End = (u32)ActiveEdges[1]->XIntersection; 
+            
+            if (End < Start)
+            {
+                Start = End;
+                End = (u32)ActiveEdges[0]->XIntersection;
+            }
+            
+            End = End < Buffer->Width ? End : Buffer->Width;
+            Start = Start >= 0 ? Start : 0;
+            
+            for(u32 X = Start;
+                X <= End;
+                ++X)
+            {
+                
+                u32 *PixelPtrA = PixelRow + X;
+                *PixelPtrA = 0xFFFFFFFF;
+            }
+        }
+        
+        
+        //calculate next X intersection and remove lines that are not active anymore
+        {
+            f32 NextY = CurrentY + 1.0f;
+            u32 RemoveCount = 0;
+            for (u32 ActiveIndex = 0;
+                 ActiveIndex < ActiveCount;
+                 ++ActiveIndex)
+            {
+                edge *ActiveEdge = ActiveEdges[ActiveIndex];
+                
+                if (NextY > ActiveEdge->YEnd)
+                {
+                    ActiveEdges[ActiveIndex] = 0;
+                    ++RemoveCount;
+                }
+                else
+                {
+                    ActiveEdge->XIntersection += ActiveEdge->Slope;
+                    if (RemoveCount)
+                    {
+                        ActiveEdges[ActiveIndex - RemoveCount] = ActiveEdge;
+                    }
+                }
+            }
+            
+            ActiveCount -= RemoveCount;
+        }
+        
+        //end if no edges are left
+        if (FirstActiveIndex == SortedCount && ActiveCount == 0)
+        {
+            break;
         }
     }
 }

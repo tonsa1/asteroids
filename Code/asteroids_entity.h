@@ -143,54 +143,32 @@ GetEntityType(world_chunk *Chunk, u32 EntityID)
 }
 
 
-internal line
-CreateLine(v2 Start, v2 End)
-{
-    line Line = {};
-    
-    Line.Start = Start;
-    Line.End = End;
-    Line.Vector = Line.End - Line.Start;
-    Line.Normal = Perp(Line.Vector);
-    Line.Normal = Line.Normal*(1.0f / Length(Line.Normal));
-    
-    return Line;
-}
-
-internal void
-CreateBezier(v2 A, v2 B, v2 C, v2 D)
-{
-    
-}
-
-
 internal void
 CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_chunk *Chunk,
-               asteroid_type AsteroidType, f32 Scale, v2 OldVelocity = {}, v2 OldPosition = {})
+               asteroid_type AsteroidType, f32 Scale, v2 OldVelocity = {}, v2 OldPosition = {}, f32 OldScale = 0.f)
 {
     if (Chunk->EntityCount < ArrayCount(Chunk->Entities))
     {
+        
+        u32 RandomAsteroidID = (RandomValue() % MAX_ASTEROID_MESH_COUNT);
+        Assert(RandomAsteroidID >= GAI_LineMeshAsteroidStart && RandomAsteroidID <= GAI_LineMeshAsteroidEnd);
+        game_asset_id AssetID = (game_asset_id)(GAI_LineMeshAsteroidStart + RandomAsteroidID);
+        
         entity *Entity = Chunk->Entities + AddEntity(World, GameState,
                                                      V2(0,0),
                                                      V2(1,1),
                                                      EntityType_Asteroid,
                                                      (collision_flags)(Flag_Bullet | Flag_Player),
-                                                     GAI_LineMeshAsteroid,
+                                                     AssetID,
                                                      HitboxType_LineMesh,
                                                      Chunk->Chunk,
                                                      true, true);
-        line_mesh LineMesh = {};
         
-        LineMesh.LineCount = 5;
         Entity->Color = V4(1,1,1,1);
-        
         Entity->AsteroidType = AsteroidType_Big;
-        LineMesh.Lines[0] = CreateLine(V2(-0.5f, -0.5f), V2(-0.4f, 0.4f));
-        LineMesh.Lines[1] = CreateLine(LineMesh.Lines[0].End, V2(0.3f, 0.5f));
-        LineMesh.Lines[2] = CreateLine(LineMesh.Lines[1].End, V2(0.6f, -0.1f));;
-        LineMesh.Lines[3] = CreateLine(LineMesh.Lines[2].End, V2(0.1f, -0.6f));;
-        LineMesh.Lines[4] = CreateLine(LineMesh.Lines[3].End,
-                                       LineMesh.Lines[0].Start);
+        
+        line_mesh *LineMesh = GetLineMesh(Assets, AssetID);
+        
         v2 RandomOffset = {};
         u32 RandomNumber = 0;
         f32 RandomSpeed = 0;
@@ -201,27 +179,35 @@ CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_c
         
         if(AsteroidType == AsteroidType_Big)
         {
-            RandomNumber = rand() % GameState->AsteroidSpawnCount;
-            RandomOffset = V2(rand() % 10 + -5.0f, rand() % 10 + -5.0f);
-            RandomSpeed = (f32)(rand() % 10 + 2);
+            RandomNumber = RandomValue() % GameState->AsteroidSpawnCount;
+            RandomOffset = V2(RandomValue() % 10 + -5.0f, RandomValue() % 10 + -5.0f);
+            RandomSpeed = (f32)(RandomValue() % 10 + 2);
             RandomSpeedR = RandomSpeed * 0.15f;
             RandomSpeed *= 0.175f;
-            RandScale = (f32)(rand() % 20);
+            RandScale = (f32)(RandomValue() % 20);
             RandScale *= 0.1f;
             RandScale += 0.75f;
+            if (RandScale < 3.0f)
+            {
+                RandScale = 3.0f;
+            }
             P = GameState->AsteroidSpawns[RandomNumber];
             ddP = (0.02f + RandomSpeed)*Normalize((World->WorldCenter + RandomOffset) - P);
         }
         else if(AsteroidType == AsteroidType_Small)
         {
             srand(GameState->NextID);
-            RandomOffset = V2(rand() % 2 + -1.0f, rand() % 1 + -1.0f);
-            RandomSpeed = (f32)(rand() % 10 + 2);;
+            RandomOffset = V2(RandomValue() % 2 + -1.0f, RandomValue() % 1 + -1.0f);
+            RandomSpeed = (f32)(RandomValue() % 10 + 2);;
             RandomSpeedR = RandomSpeed * 0.15f;
             RandomSpeed *= 0.175f;
-            RandScale = (f32)(rand() % 5);
+            RandScale = (f32)(RandomValue() % 5);
             RandScale *= 0.1f;
             RandScale += 0.3f;
+            if (RandScale < .5f)
+            {
+                RandScale = .5f;
+            }
             ddP = OldVelocity;
             P = OldPosition + RandomOffset*0.4f;
         }
@@ -234,8 +220,38 @@ CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_c
         Entity->ddR = RandomSpeedR;
         Entity->TravelDistance = 0;
         Entity->Collides = true;
+    }
+}
+
+
+internal void
+CreateBullet(game_state *GameState, game_assets *Assets, world *World, world_chunk *Chunk, entity *PlayerEntity)
+{
+    if (Chunk->EntityCount < ArrayCount(Chunk->Entities) && World->BulletCooldown == 0.0f)
+    {
+        World->BulletCooldown -= 0.5f;
+        entity *Entity = Chunk->Entities + AddEntity(World, GameState,
+                                                     V2(0,0),
+                                                     V2(1,1),
+                                                     EntityType_Bullet,
+                                                     (collision_flags)(Flag_Asteroid),
+                                                     GAI_LineMeshBullet,
+                                                     HitboxType_LineMesh,
+                                                     Chunk->Chunk,
+                                                     true, true);
         
-        *GetLineMesh(Assets, GAI_LineMeshAsteroid) = LineMesh;
+        line_mesh *LineMesh = GetLineMesh(Assets, GAI_LineMeshBullet);
+        line Line = LineMesh->Lines[0];
+        v2 RotatedEnd = Line.End.x*PlayerEntity->Basis.X + Line.End.y*PlayerEntity->Basis.Y;
+        
+        Entity->Basis.Scale = 0.15f;
+        Entity->P = PlayerEntity->P + RotatedEnd;
+        Entity->MaxTravelDistance = 15.0f;
+        Entity->ddP = 10.3f*Normalize(PlayerEntity->Basis.Y);
+        Entity->ddR = 0.1f;
+        Entity->TravelDistance = 0;
+        Entity->Collides = true;
+        Entity->Color = V4(1,0,0,1);
     }
 }
 
@@ -269,7 +285,7 @@ BreakAsteroid(game_state *GameState, game_assets *Assets, world *World, world_ch
                     ++AsteroidIndex)
                 {
                     
-                    CreateAsteroid(GameState,Assets, World, Chunk, AsteroidType_Small, 1.0f, OldVelocity, OldPos);
+                    CreateAsteroid(GameState, Assets, World, Chunk, AsteroidType_Small, SpawnsLeft, OldVelocity, OldPos);
                     SpawnsLeft -= 1.0f;
                 }
 #endif
@@ -407,7 +423,7 @@ MoveAsteroid(game_state *GameState, game_assets *Assets, world *World, world_chu
         if(Entity->TravelDistance >= Entity->MaxTravelDistance)
         {
             RemoveEntity(Chunk, EntityID);
-            CreateAsteroid(GameState, Assets, World, Chunk, AsteroidType_Big, (rand() % 1 + 0.5f));
+            CreateAsteroid(GameState, Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         }
     }
 }
@@ -446,46 +462,6 @@ MoveBullet(game_state *GameState, game_assets *Assets,  world *World, world_chun
                 RemoveEntity(Chunk, Entity->EntityID);
             }
         }
-    }
-}
-
-internal void
-CreateBullet(game_state *GameState, game_assets *Assets, world *World, world_chunk *Chunk, entity *PlayerEntity)
-{
-    if (Chunk->EntityCount < ArrayCount(Chunk->Entities) && World->BulletCooldown == 0.0f)
-    {
-        line_mesh *LineMesh = GetLineMesh(Assets, GAI_LineMeshBullet);
-        World->BulletCooldown -= 0.5f;
-        entity *Entity = Chunk->Entities + AddEntity(World, GameState,
-                                                     V2(0,0),
-                                                     V2(1,1),
-                                                     EntityType_Bullet,
-                                                     (collision_flags)(Flag_Asteroid),
-                                                     GAI_LineMeshBullet,
-                                                     HitboxType_LineMesh,
-                                                     Chunk->Chunk,
-                                                     true, true);
-        LineMesh->LineCount = 4;
-        Entity->Color = V4(1,0,0,1);
-        
-        Entity->AsteroidType = AsteroidType_Big;
-        LineMesh->Lines[0] = CreateLine(V2(-0.5f, -0.0f), V2(-0.0f, 0.5f));
-        LineMesh->Lines[1] = CreateLine(LineMesh->Lines[0].End, V2(0.5f, 0.0f));
-        LineMesh->Lines[2] = CreateLine(LineMesh->Lines[1].End, V2(0.0f, -0.5f));;
-        LineMesh->Lines[3] = CreateLine(LineMesh->Lines[2].End,
-                                        LineMesh->Lines[0].Start);
-        
-        line Line = LineMesh->Lines[0];
-        v2 RotatedEnd = Line.End.x*PlayerEntity->Basis.X + Line.End.y*PlayerEntity->Basis.Y;
-        
-        Entity->Basis.Scale = 0.15f;
-        Entity->P = PlayerEntity->P + RotatedEnd;
-        Entity->MaxTravelDistance = 15.0f;
-        Entity->ddP = 10.3f*Normalize(PlayerEntity->Basis.Y);
-        Entity->ddR = 0.1f;
-        Entity->TravelDistance = 0;
-        Entity->Collides = true;
-        //Entity->LineMesh = LineMesh;
     }
 }
 

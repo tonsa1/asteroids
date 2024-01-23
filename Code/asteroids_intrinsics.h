@@ -8,7 +8,7 @@ inline u32 AtomicCompareExchangeUInt32(u32 volatile *Value, u32 Expected, u32 Ne
 }
 
 inline
-u32 GetByteLength(void *Pointer)
+u32 GetStringLength(void *Pointer)
 {
     u32 Result = 0;
     for(u8 *Byte = (u8 *)Pointer;
@@ -22,12 +22,12 @@ u32 GetByteLength(void *Pointer)
 }
 
 inline void 
-CopySize(void *Pointer, void *Dest_, u32 Size)
+CopySize(void *Source, void *Dest_, u32 Size)
 {
     u8 *Dest = (u8 *)Dest_;
     u32 Index = 0;
-    for(u8 *Byte = (u8 *)Pointer;
-        *Byte && Index < Size;
+    for(u8 *Byte = (u8 *)Source;
+        Byte && (*Byte && Index < Size);
         ++Byte)
     {
         *(Dest + Index++) = *Byte;

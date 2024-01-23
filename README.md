@@ -1,7 +1,7 @@
 This is my game engine. Everything has been written by me. No third party libraries used.
 
 The demo is a simple Asteroids game.
-The rendering is done by a software rasterizer that is multithreaded and SIMD optimized with AVX256.
+The rendering is done by a software rasterizer that is SIMD optimized with AVX.
 
 The source code can be found in the "Code" directory and the executable is in "release".
 

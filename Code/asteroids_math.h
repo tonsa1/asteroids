@@ -930,8 +930,15 @@ f32 Absolute(f32 Real32)
 
 v2 Normalize(v2 V)
 {
-    f32 InvMul = 1.0f / Length(V);
-    v2 Result = V*InvMul;
+    v2 Result = {};
+    
+    f32 VectorLength = Length(V);
+    
+    if (VectorLength > 0.00001f)
+    {
+        f32 InvMul = 1.0f / VectorLength;
+        Result = V * InvMul;
+    }
     
     return Result;
 }
@@ -945,6 +952,8 @@ b32 V2_iEquals(v2_i A, v2_i B)
     
     return Result;
 }
+
+
 
 #define ASTEROIDS_MATH_H
 #endif

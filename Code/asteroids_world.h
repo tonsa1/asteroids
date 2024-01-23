@@ -1,5 +1,61 @@
 #if !defined(ASTEROIDS_WORLD_H)
 
+
+
+internal line
+CreateLine(v2 Start, v2 End)
+{
+    line Line = {};
+    
+    Line.Start = Start;
+    Line.End = End;
+    Line.Vector = Line.End - Line.Start;
+    Line.Normal = Normalize(Perp(Line.Vector));
+    
+    return Line;
+}
+
+internal
+u32 RandomValue()
+{
+    // TODO(Tony): Replace this with less horrible rng
+    u32 Result = rand();
+    
+    return Result;
+}
+
+internal
+v2 RandomOffset()
+{
+    v2 Result;
+    
+    Result.x = (f32)(RandomValue() % 10) * 0.1f;
+    Result.y = (f32)(RandomValue() % 10) * 0.1f;
+    
+    return Result;
+}
+
+internal
+v2 RandomOffsetBilateral(f32 Scale = 1.0f)
+{
+    v2 Result;
+    
+    Result.x = ((f32)(RandomValue() % 20) * 0.1f - 1.0f) * Scale;
+    Result.y = ((f32)(RandomValue() % 20) * 0.1f - 1.0f) * Scale;
+    
+    return Result;
+}
+
+internal 
+v2 PointToWorld(entity *Entity, v2 P)
+{
+    v2 Result;
+    
+    Result = (Entity->P + P.x*Entity->Basis.X + P.y*Entity->Basis.Y);
+    
+    return Result;
+}
+
 void
 InitializeWorld(world *World, f32 ScreenXInMeters, f32 ScreenYInMeters)
 {

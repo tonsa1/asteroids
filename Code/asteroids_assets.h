@@ -2,14 +2,17 @@
 
 enum game_asset_id
 {
-    GAI_LineMeshes,
-    GAI_LineMeshPlayer,
+    GAI_LineMeshStart,
+    GAI_LineMeshAsteroidStart = 0,
     GAI_LineMeshAsteroid,
+    GAI_LineMeshAsteroidEnd = 20,
+    GAI_LineMeshPlayer,
     GAI_LineMeshBullet,
-    GAI_SpriteRandom,
-    GAI_CharacterA,
+    GAI_LineMeshEnd,
     
-    GAI_Characters,
+    GAI_BitmapStart,
+    GAI_SpriteRandom,
+    GAI_CharactersStart,
     GAI_A,
     GAI_B,
     GAI_C,
@@ -36,9 +39,15 @@ enum game_asset_id
     GAI_X,
     GAI_Y,
     GAI_Z,
+    GAI_CharactersEnd,
+    GAI_BitmapEnd,
     
     GAI_Count,
 };
+
+#define BITMAP_COUNT (GAI_BitmapEnd - GAI_BitmapStart)
+#define LINEMESH_COUNT (GAI_LineMeshEnd - GAI_LineMeshStart)
+#define MAX_ASTEROID_MESH_COUNT (GAI_LineMeshAsteroidEnd - GAI_LineMeshAsteroidStart)
 
 enum asset_state
 {
@@ -52,7 +61,13 @@ enum asset_state
 struct asset_slot
 {
     asset_state State;
-    loaded_bitmap Bitmap;
+    char *FileName;
+    
+    union
+    {
+        loaded_bitmap *Bitmap;
+        line_mesh *LineMesh;
+    };
 };
 
 enum asset_tag_id
@@ -102,25 +117,23 @@ struct game_assets
     memory_arena Arena;
     struct transient_state *TranState;
     
-    line_mesh LineMeshes[GAI_Count];
+    u32 RandomAsteroidCount;
+    line_mesh *RandomAsteroidMeshes;
     
-    u32 BitmapCount;
-    asset_slot *Bitmaps;
+    //loaded_bitmap *Bitmaps;
+    //asset_slot Characters[26];
     
     u32 AssetCount;
-    asset *Assets;
+    asset *AssetList;
     u32 TagCount;
     asset_tag *Tags;
     
-    
-    asset_slot Characters[26];
+    asset_slot LoadedAssets[GAI_Count];
 };
 
 struct load_asset_work
 {
     game_assets *Assets;
-    //char* FileName;
-    char FileName[64];
     game_asset_id ID;
     asset_slot *Slot;
     
@@ -130,6 +143,32 @@ struct load_asset_work
     
     asset_state FinalState;
 };
+
+#pragma pack(push,1)
+struct bitmap_header
+{
+    u16 FileType;
+    u32 FileSize;
+    u16 Reserved1;
+    u16 Reserved2;
+    u32 BitmapOffset;
+    u32 Size;
+    s32 Width;
+    s32 Height;
+    u16 Planes;
+    u16 BitsPerPixel;
+    u32 Compression;
+    u32 SizeOfBitmap;
+    s32 HorzResolution;
+    s32 VertResolution;
+    u32 ColorsUsed;
+    u32 ColorsImportant;
+    
+    u32 RedMask;
+    u32 GreenMask;
+    u32 BlueMask;
+};
+#pragma pack(pop)
 
 #define ASTEROIDS_ASSETS_H
 #endif
