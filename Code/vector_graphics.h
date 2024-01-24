@@ -3,7 +3,35 @@
 #ifndef VECTOR_GRAPHICS_H
 #define VECTOR_GRAPHICS_H
 
-
+internal s32
+CreateEdge(edge *Edge, v2 Start, v2 End)
+{
+    s32 Result = 0;
+    Edge->Direction = End.y > Start.y;
+    if (!Edge->Direction)
+    {
+        v2 Temp = Start;
+        Start = End;
+        End = Temp;
+    }
+    
+    Edge->XStart = Start.x;
+    Edge->YStart = Start.y;
+    
+    Edge->XEnd = End.x;
+    Edge->YEnd = End.y;
+    
+    Edge->XIntersection = Start.x;
+    
+    Edge->Slope = (End.x - Start.x) / (End.y - Start.y);
+    
+    if (isinf(Edge->Slope))
+    {
+        Result = -1;
+    }
+    
+    return Result;
+}
 
 internal u32
 CreateEdges(v2 *Points, u32 PointCount, entity *Entity, edge *EdgeBuffer, edge **SortedEdges, u32 MaxEdgeCount, f32 Scale)
@@ -22,28 +50,7 @@ CreateEdges(v2 *Points, u32 PointCount, entity *Entity, edge *EdgeBuffer, edge *
         edge *Edge = EdgeBuffer + NewEdgeCount;
         SortedEdges[NewEdgeCount++] = Edge;
         
-        Edge->Direction = End.y > Start.y;
-        if (!Edge->Direction)
-        {
-            v2 Temp = Start;
-            Start = End;
-            End = Temp;
-        }
-        
-        Edge->XStart = Start.x;
-        Edge->YStart = Start.y;
-        
-        Edge->XEnd = End.x;
-        Edge->YEnd = End.y;
-        
-        Edge->XIntersection = Start.x;
-        
-        Edge->Slope = (End.x - Start.x) / (End.y - Start.y);
-        
-        if (isinf(Edge->Slope))
-        {
-            --NewEdgeCount;
-        }
+        NewEdgeCount += CreateEdge(Edge, Start, End);
     }
     
     return NewEdgeCount;
@@ -66,29 +73,7 @@ CreateEdges(line_mesh *Mesh, entity *Entity, edge *EdgeBuffer, edge **SortedEdge
         v2 Start = PointToWorld(Entity, Line->Start)*Scale;
         v2 End = PointToWorld(Entity, Line->End)*Scale;
         
-        Edge->Direction = End.y > Start.y;
-        
-        if (!Edge->Direction)
-        {
-            v2 Temp = Start;
-            Start = End;
-            End = Temp;
-        }
-        
-        Edge->XStart = Start.x;
-        Edge->YStart = Start.y;
-        
-        Edge->XEnd = End.x;
-        Edge->YEnd = End.y;
-        
-        Edge->XIntersection = Start.x;
-        
-        Edge->Slope = (End.x - Start.x) / (End.y - Start.y);
-        
-        if (isinf(Edge->Slope))
-        {
-            --NewEdgeCount;
-        }
+        NewEdgeCount += CreateEdge(Edge, Start, End);
     }
     
     return NewEdgeCount;
@@ -122,7 +107,7 @@ void SortEdgesY(edge **Edges, u32 MaxEdgeCount)
 }
 
 internal void
-DrawMmozeiko(temporary_memory TempMem, entity *Entity, game_buffer *GameBuffer, f32 Scale,
+DrawMmozeiko(entity *Entity, game_buffer *GameBuffer, f32 Scale,
              v2 **Points, u32 *PointCounts, u32 PointArrayCount,
              edge *Edges, edge **SortedEdges, edge **ActiveEdges, u32 MaxEdgeCount)
 {
@@ -152,8 +137,66 @@ DrawMmozeiko(temporary_memory TempMem, entity *Entity, game_buffer *GameBuffer, 
 }
 
 internal void
-CreateMmozeiko(temporary_memory TempMem, entity *Entity, game_buffer *GameBuffer)
+CreateMmozeiko(temporary_memory *TempMem, entity *Entity, game_buffer *GameBuffer)
 {
+    {
+        // Lower Hat
+        v2 Points5[]
+        {
+            V2(-1.25f, -0.65f),
+            V2(-0.45f, -1.0f),
+            
+            V2(-0.15f, -.9f),
+            V2(0.15f, -.9f),
+            
+            V2(0.5f, -1.0f),
+            V2(1.2f, -0.6f),
+            
+            V2(.7f, -0.5f),
+            V2(-.8f, -0.55f),
+        };
+        
+        // Upper Hat
+        v2 Points6[]
+        {
+            V2(-0.4f, -1.15f),
+            
+            V2(-0.15f, -1.6f),
+            
+            V2(0.25f, -2.0f),
+            
+            V2(0.5f, -1.95f),
+            V2(0.73f, -1.6f),
+            V2(0.45f, -1.7f),
+            
+            V2(0.4f, -1.4f),
+            V2(0.45f, -1.15f),
+            V2(0.15f, -1.05f),
+            V2(-0.2f, -1.05f),
+        };
+        
+        v2 *Points[] =
+        {
+            Points5,
+            Points6,
+        };
+        
+        u32 PointCounts[] =
+        {
+            ArrayCount(Points5),
+            ArrayCount(Points6),
+        };
+        
+        u32 EdgeCount = ArrayCount(Points5) + ArrayCount(Points6);
+        edge *Edges = PushArray(TempMem->Arena, EdgeCount, edge);
+        edge **SortedEdges = PushArray(TempMem->Arena, EdgeCount, edge *);
+        // TODO(Tony): this doesnt need to be full size. Instead I could just check whats the possible maximum active count
+        edge **ActiveEdges = PushArray(TempMem->Arena, EdgeCount, edge *);
+        
+        DrawMmozeiko(Entity, GameBuffer, GameBuffer->MetersToPixels,
+                     Points, PointCounts, ArrayCount(PointCounts),
+                     Edges, SortedEdges, ActiveEdges, EdgeCount);
+    }
     {
         
         // Head
@@ -220,72 +263,31 @@ CreateMmozeiko(temporary_memory TempMem, entity *Entity, game_buffer *GameBuffer
         };
         
         u32 EdgeCount = ArrayCount(Points1) + ArrayCount(Points2) + ArrayCount(Points3) + ArrayCount(Points4);
-        edge *Edges = PushArray(TempMem.Arena, EdgeCount, edge);
-        edge **SortedEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
-        edge **ActiveEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
+        edge *Edges = PushArray(TempMem->Arena, EdgeCount, edge);
+        edge **SortedEdges = PushArray(TempMem->Arena, EdgeCount, edge *);
+        edge **ActiveEdges = PushArray(TempMem->Arena, EdgeCount, edge *);
         
-        DrawMmozeiko(TempMem, Entity, GameBuffer, GameBuffer->MetersToPixels,
+        DrawMmozeiko(Entity, GameBuffer, GameBuffer->MetersToPixels,
                      Points, PointCounts, ArrayCount(PointCounts),
                      Edges, SortedEdges, ActiveEdges, EdgeCount);
     }
     
-    {
-        // Lower Hat
-        v2 Points5[]
-        {
-            V2(-1.25f, -0.65f),
-            V2(-0.45f, -1.0f),
-            
-            V2(-0.15f, -.9f),
-            V2(0.15f, -.9f),
-            
-            V2(0.5f, -1.0f),
-            V2(1.2f, -0.6f),
-            
-            V2(.7f, -0.5f),
-            V2(-.8f, -0.55f),
-        };
-        
-        // Upper Hat
-        v2 Points6[]
-        {
-            V2(-0.4f, -1.15f),
-            
-            V2(-0.15f, -1.6f),
-            
-            V2(0.25f, -2.0f),
-            
-            V2(0.5f, -1.95f),
-            V2(0.73f, -1.6f),
-            V2(0.45f, -1.7f),
-            
-            V2(0.4f, -1.4f),
-            V2(0.45f, -1.15f),
-            V2(0.15f, -1.05f),
-            V2(-0.2f, -1.05f),
-        };
-        
-        v2 *Points[] =
-        {
-            Points5,
-            Points6,
-        };
-        
-        u32 PointCounts[] =
-        {
-            ArrayCount(Points5),
-            ArrayCount(Points6),
-        };
-        
-        u32 EdgeCount = ArrayCount(Points5) + ArrayCount(Points6);
-        edge *Edges = PushArray(TempMem.Arena, EdgeCount, edge);
-        edge **SortedEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
-        edge **ActiveEdges = PushArray(TempMem.Arena, EdgeCount, edge *);
-        
-        DrawMmozeiko(TempMem, Entity, GameBuffer, GameBuffer->MetersToPixels,
-                     Points, PointCounts, ArrayCount(PointCounts),
-                     Edges, SortedEdges, ActiveEdges, EdgeCount);
-    }
+    
+}
+
+internal void
+DrawLineMeshEntity(temporary_memory *TempMem, game_buffer *GameBuffer, line_mesh *Mesh, entity *Entity)
+{
+    u32 MaxEdgeCount = Mesh->LineCount;
+    edge *Edges = PushArray(TempMem->Arena, MaxEdgeCount, edge);
+    edge **SortedEdges = PushArray(TempMem->Arena, MaxEdgeCount, edge *);
+    edge **ActiveEdges = PushArray(TempMem->Arena, MaxEdgeCount, edge *);
+    
+    u32 DrawCount = CreateEdges(Mesh, Entity, Edges, SortedEdges, MaxEdgeCount, GameBuffer->MetersToPixels);
+    
+    SortEdgesY(SortedEdges, DrawCount);
+    
+    DrawShape(GameBuffer, SortedEdges, ActiveEdges, DrawCount);
 }
 
 #endif //VECTOR_GRAPHICS_H

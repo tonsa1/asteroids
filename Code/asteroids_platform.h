@@ -38,7 +38,7 @@ typedef double f64;
 
 #define f32Max FLT_MAX
 
-#define Assert(Expression) if(!(Expression)) {*(s32 *)0 = 0;}
+#define Assert(Condition) do { if (!(Condition))  __debugbreak(); } while (0)
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct cycle_count

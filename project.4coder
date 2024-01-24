@@ -1,0 +1,40 @@
+project_name = "Asteroids";
+
+patterns = 
+{
+    "*.cpp",
+    "*.h",
+    "*.bat",
+};
+
+blacklist_patterns = 
+{
+    ".*",
+};
+
+load_paths = 
+{
+    { {
+            { ".", .relative = true, .recursive = true}
+        }, .os = "win" },
+};
+
+command_list = 
+{
+    { .name = "build",
+        .out = "*compilation*", .footer_panel = false, .save_dirty_files = true,
+        .cursor_at_end = false,
+        
+        .cmd = { { "build.bat", .os = "win"}, },
+    },
+    { .name = "run",
+        .out = "*run*", .footer_panel = false, .save_dirty_files = false,
+        .cmd = { { "..\\build\\win32_asteroids.exe", .os = "win"   },
+        },
+    },
+    
+};
+
+
+fkey_command[1] = "build";
+fkey_command[2] = "run";

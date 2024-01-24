@@ -145,7 +145,7 @@ GetEntityType(world_chunk *Chunk, u32 EntityID)
 
 internal void
 CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_chunk *Chunk,
-               asteroid_type AsteroidType, f32 Scale, v2 OldVelocity = {}, v2 OldPosition = {}, f32 OldScale = 0.f)
+               asteroid_type AsteroidType, f32 Scale, v2 OldVelocity = {}, v2 OldPosition = {})
 {
     if (Chunk->EntityCount < ArrayCount(Chunk->Entities))
     {
@@ -184,13 +184,13 @@ CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_c
             RandomSpeed = (f32)(RandomValue() % 10 + 2);
             RandomSpeedR = RandomSpeed * 0.15f;
             RandomSpeed *= 0.175f;
-            RandScale = (f32)(RandomValue() % 20);
+            RandomSpeed = (RandomSpeed < .1f) ? .1f : RandomSpeed;
+            RandScale = (f32)(RandomValue() % 10);
             RandScale *= 0.1f;
             RandScale += 0.75f;
-            if (RandScale < 3.0f)
-            {
-                RandScale = 3.0f;
-            }
+            RandScale = (RandScale < 3.0f) ? 3.0f : RandScale;
+            RandScale = (RandScale > 7.0f) ? 7.0f : RandScale;
+            
             P = GameState->AsteroidSpawns[RandomNumber];
             ddP = (0.02f + RandomSpeed)*Normalize((World->WorldCenter + RandomOffset) - P);
         }
@@ -201,13 +201,13 @@ CreateAsteroid(game_state *GameState, game_assets *Assets, world *World, world_c
             RandomSpeed = (f32)(RandomValue() % 10 + 2);;
             RandomSpeedR = RandomSpeed * 0.15f;
             RandomSpeed *= 0.175f;
+            RandomSpeed = (RandomSpeed < .1f) ? .1f : RandomSpeed;
             RandScale = (f32)(RandomValue() % 5);
             RandScale *= 0.1f;
             RandScale += 0.3f;
-            if (RandScale < .5f)
-            {
-                RandScale = .5f;
-            }
+            RandScale = (RandScale < 1.0f) ? 1.0f : RandScale;
+            RandScale = (RandScale > 3.0f) ? 3.0f : RandScale;
+            
             ddP = OldVelocity;
             P = OldPosition + RandomOffset*0.4f;
         }
@@ -284,8 +284,8 @@ BreakAsteroid(game_state *GameState, game_assets *Assets, world *World, world_ch
                     SpawnsLeft > 0.0f;
                     ++AsteroidIndex)
                 {
-                    
-                    CreateAsteroid(GameState, Assets, World, Chunk, AsteroidType_Small, SpawnsLeft, OldVelocity, OldPos);
+                    v2 RandomOffset = V2((f32)(RandomValue() % 10) * 0.1f , (f32)(RandomValue() % 10) * 0.1f);
+                    CreateAsteroid(GameState, Assets, World, Chunk, AsteroidType_Small, SpawnsLeft, OldVelocity, OldPos + RandomOffset);
                     SpawnsLeft -= 1.0f;
                 }
 #endif
@@ -299,7 +299,7 @@ void
 MovePlayer(memory_arena *Arena, game_assets *Assets, world *World, game_state *GameState, world_chunk *CameraChunk, entity *Entity, u32 EntityIndex, f32 dt)
 {
     v2 OldP = Entity->P;
-    Entity->ddP += -Entity->dP*5.55f; // SHITTY ASS "FRICTION"
+    Entity->ddP += -Entity->dP*5.55f; // POOR "FRICTION"
     
     v2 EntitydP = (0.5f*Entity->ddP*Square(dt) +
                    Entity->dP*dt);
@@ -336,6 +336,9 @@ MovePlayer(memory_arena *Arena, game_assets *Assets, world *World, game_state *G
     Entity->ddR = 0.0f;
     Entity->PlayerSpeed = 0.0f;
     //Entity->Multiplier = 0.0f;
+    
+    // NOTE(Tony): Disable changing screens for now.
+#if 0    
     rect2 ChunkRect = HalfDimRect2(World->ChunkDim / 2, World->ChunkDim);
     if (!IsPointInsideRect(Pos, ChunkRect))
     {
@@ -390,6 +393,8 @@ MovePlayer(memory_arena *Arena, game_assets *Assets, world *World, game_state *G
         --OldChunk->EntityCount;
         
     }
+#endif
+    
 }
 
 internal void

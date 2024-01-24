@@ -232,7 +232,7 @@ struct world_chunk
 {
     v2_i Chunk;
     u32 EntityCount;
-    entity Entities[128];
+    entity Entities[256];
     u32 AsteroidPoints;
     world_chunk *NextInHash;
 };

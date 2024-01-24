@@ -191,170 +191,6 @@ RenderRect(game_buffer *Buffer, v2 P, v2 Dim, v4 Color)
     }
 }
 
-internal void
-DrawRectangleSlowly(game_buffer *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Color,
-                    loaded_bitmap *Texture)
-{
-    Origin *= Buffer->MetersToPixels;
-    YAxis *= Buffer->MetersToPixels;
-    XAxis *= Buffer->MetersToPixels;
-    f32 InvXAxisLengthSq = 1.0f / LengthSq(XAxis);
-    f32 InvYAxisLengthSq = 1.0f / LengthSq(YAxis);
-    
-    u32 Color32 = ((RoundReal32ToUInt32(Color.a * 255.0f) << 24) |
-                   (RoundReal32ToUInt32(Color.r * 255.0f) << 16) |
-                   (RoundReal32ToUInt32(Color.g * 255.0f) << 8) |
-                   (RoundReal32ToUInt32(Color.b * 255.0f) << 0));
-    
-    int WidthMax = (Buffer->Width - 1);
-    int HeightMax = (Buffer->Height - 1);
-    
-    int XMin = WidthMax;
-    int XMax = 0;
-    int YMin = HeightMax;
-    int YMax = 0;
-    
-    v2 P[4] = {Origin, Origin + XAxis, Origin + XAxis + YAxis, Origin + YAxis};
-    for(int PIndex = 0;
-        PIndex < ArrayCount(P);
-        ++PIndex)
-    {
-        v2 TestP = P[PIndex];
-        int FloorX = FloorReal32ToInt32(TestP.x);
-        int CeilX = CeilReal32ToInt32(TestP.x);
-        int FloorY = FloorReal32ToInt32(TestP.y);
-        int CeilY = CeilReal32ToInt32(TestP.y);
-        
-        if(XMin > FloorX) {XMin = FloorX;}
-        if(YMin > FloorY) {YMin = FloorY;}
-        if(XMax < CeilX) {XMax = CeilX;}
-        if(YMax < CeilY) {YMax = CeilY;}
-    }
-    
-    if(XMin < 0) {XMin = 0;}
-    if(YMin < 0) {YMin = 0;}
-    if(XMax > WidthMax) {XMax = WidthMax;}
-    if(YMax > HeightMax) {YMax = HeightMax;}    
-    
-    u8 *Row = ((u8 *)Buffer->Memory +
-               XMin*BITMAP_BYTES_PER_PIXEL +
-               YMin*Buffer->Pitch);
-    for(int Y = YMin;
-        Y <= YMax;
-        ++Y)
-    {
-        
-        u32 *Pixel = (u32 *)Row;
-        for(int X = XMin;
-            X <= XMax;
-            ++X)
-        {
-#if 1
-            v2 PixelP = V2i(X, Y);
-            v2 d = PixelP - Origin;
-            
-            // TODO(casey): PerpInner
-            // TODO(casey): Simpler origin
-            f32 Edge0 = Inner(d, -Perp(XAxis));
-            f32 Edge1 = Inner(d - XAxis, -Perp(YAxis));
-            f32 Edge2 = Inner(d - XAxis - YAxis, Perp(XAxis));
-            f32 Edge3 = Inner(d - YAxis, Perp(YAxis));
-            
-            if((Edge0 < 0) &&
-               (Edge1 < 0) &&
-               (Edge2 < 0) &&
-               (Edge3 < 0))
-            {
-                f32 U = InvXAxisLengthSq*Inner(d, XAxis);
-                f32 V = InvYAxisLengthSq*Inner(d, YAxis);
-                
-                // TODO(casey): SSE clamping.
-                Assert((U >= 0.0f) && (U <= 1.0f));
-                Assert((V >= 0.0f) && (V <= 1.0f));
-                
-                // TODO(casey): Formalize texture boundaries!!!
-                f32 tX = ((U*(f32)(Texture->Width - 2)));
-                f32 tY = ((V*(f32)(Texture->Height - 2)));
-                
-                s32 X = (s32)tX;
-                s32 Y = (s32)tY;
-                
-                f32 fX = tX - (f32)X;
-                f32 fY = tY - (f32)Y;
-                
-                Assert((X >= 0) && (X < Texture->Width));
-                Assert((Y >= 0) && (Y < Texture->Height));
-                
-                u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y*Texture->Pitch + X*sizeof(u32);
-                u32 TexelPtrA = *(u32 *)(TexelPtr);
-                u32 TexelPtrB = *(u32 *)(TexelPtr + sizeof(u32));
-                u32 TexelPtrC = *(u32 *)(TexelPtr + Texture->Pitch);
-                u32 TexelPtrD = *(u32 *)(TexelPtr + Texture->Pitch + sizeof(u32));
-                
-                // TODO(casey): Color.a!!
-                v4 TexelA = {(f32)((TexelPtrA >> 16) & 0xFF),
-                    (f32)((TexelPtrA >> 8) & 0xFF),
-                    (f32)((TexelPtrA >> 0) & 0xFF),
-                    (f32)((TexelPtrA >> 24) & 0xFF)};
-                v4 TexelB = {(f32)((TexelPtrB >> 16) & 0xFF),
-                    (f32)((TexelPtrB >> 8) & 0xFF),
-                    (f32)((TexelPtrB >> 0) & 0xFF),
-                    (f32)((TexelPtrB >> 24) & 0xFF)};
-                v4 TexelC = {(f32)((TexelPtrC >> 16) & 0xFF),
-                    (f32)((TexelPtrC >> 8) & 0xFF),
-                    (f32)((TexelPtrC >> 0) & 0xFF),
-                    (f32)((TexelPtrC >> 24) & 0xFF)};
-                v4 TexelD = {(f32)((TexelPtrD >> 16) & 0xFF),
-                    (f32)((TexelPtrD >> 8) & 0xFF),
-                    (f32)((TexelPtrD >> 0) & 0xFF),
-                    (f32)((TexelPtrD >> 24) & 0xFF)};
-                
-                TexelA = SRGB255ToLinear1(TexelA);
-                TexelB = SRGB255ToLinear1(TexelB);
-                TexelC = SRGB255ToLinear1(TexelC);
-                TexelD = SRGB255ToLinear1(TexelD);
-#if 1
-                v4 Texel = Lerp(Lerp(TexelA, fX, TexelB),
-                                fY,
-                                Lerp(TexelC, fX, TexelD));
-#else
-                v4 Texel = TexelA;
-#endif
-                f32 RSA = Texel.a * Color.a; 
-                
-                v4 Dest = {(f32)((*Pixel >> 16) & 0xFF),
-                    (f32)((*Pixel >> 8) & 0xFF),
-                    (f32)((*Pixel >> 0) & 0xFF),
-                    (f32)((*Pixel >> 24) & 0xFF)};
-                
-                Dest = SRGB255ToLinear1(Dest);
-                
-                f32 RDA = Dest.a;
-                
-                f32 InvRSA = (1.0f-RSA);
-                
-                v4 DestColor = {InvRSA*Dest.r + Texel.a*Color.a*Color.r*Texel.r,
-                    InvRSA*Dest.g + Texel.a*Color.a*Color.g*Texel.g,
-                    InvRSA*Dest.b + Texel.a*Color.a*Color.b*Texel.b,
-                    (RSA + RDA - RSA*RDA)};
-                
-                DestColor = Linear1ToSRGB255(DestColor);
-                
-                *Pixel = (((u32)(DestColor.a + 0.5f) << 24) |
-                          ((u32)(DestColor.r + 0.5f) << 16) |
-                          ((u32)(DestColor.g + 0.5f) << 8) |
-                          ((u32)(DestColor.b + 0.5f) << 0));
-            }
-#else
-            *Pixel = Color32;
-#endif
-            
-            ++Pixel;
-        }
-        
-        Row += Buffer->Pitch;
-    }
-}
 
 void 
 RenderBufferToScreen(game_offscreen_buffer *Buffer, game_buffer *GameBuffer)
@@ -852,7 +688,6 @@ DrawLineSlowly(game_buffer *Buffer, game_memory *Memory, v2 Start, v2 End, v4 Co
     END_COUNTER(DrawLine)
 }
 
-#if 1
 void
 DrawBezier(game_buffer *Buffer, game_memory *Memory)
 {
@@ -960,108 +795,232 @@ DrawBezier(game_buffer *Buffer, game_memory *Memory)
 void
 DrawShape(game_buffer *Buffer, edge **SortedEdges, edge **ActiveEdges, u32 SortedCount)
 {
-    u32 YStart = (u32)SortedEdges[0]->YStart;
+    s32 YStart = (u32)SortedEdges[0]->YStart;
+    YStart = YStart < 0 ? 0 : YStart;
     
     u32 FirstActiveIndex = 0;
-    u32 ActiveCount = 0;
+    s32 ActiveCount = 0;
     
-    YStart = YStart >= 0 ? YStart : 0;
+    // ARGB
+    u32 Color = 0xFFFFFFFF;
+    
+    u8 A8 = (Color >> 24) & 0xFF;
+    u8 R8 = (Color >> 16) & 0xFF;
+    u8 G8 = (Color >> 8) & 0xFF;
+    u8 B8 = Color & 0xFF;
+    
+    f32 A = (f32)A8 / 255.f;
+    f32 R = (f32)R8 / 255.f;
+    f32 G = (f32)G8 / 255.f;
+    f32 B = (f32)B8 / 255.f;
+    
+    const u32 AlphaStepCount = 5;
+    f32 Offsets[AlphaStepCount] = 
+    {
+        0.1f,
+        0.3f,
+        0.5f,
+        0.7f,
+        0.9f,
+    };
+    f32 AlphaPerStep = (1.0f / (f32)AlphaStepCount);
+    // TODO(Tony): change this buffer size to screen width
+    u8 AlphaBuffer[1024] = {};
     
     u8 *Pixels = (u8 *)Buffer->Memory;
     for(u32 Y = YStart;
         Y < Buffer->Height;
         ++Y)
     {
-        u32 *PixelRow = (u32 *)(Pixels + (Y * Buffer->Pitch));
-        f32 CurrentY = (f32)Y + 0.5f;
         
-        // add edges that are now active
+        s32 AlphaStart = 9999;
+        s32 AlphaEnd = 0;
+        
+        u32 *PixelRow = (u32 *)(Pixels + (Y * Buffer->Pitch));
+        
+        u32 Skip = true;
+        for (u32 StepIndex = 0;
+             StepIndex < AlphaStepCount;
+             ++StepIndex)
         {
-            for (u32 Index = FirstActiveIndex;
-                 Index < SortedCount;
-                 ++Index)
+            f32 CurrentY = (f32)Y + Offsets[StepIndex];
+            
+            //calculate current X intersection and remove lines that are not active anymore
             {
-                edge *Edge = SortedEdges[Index];
-                
-                if (CurrentY > Edge->YStart)
+                u32 RemoveCount = 0;
+                for (s32 ActiveIndex = 0;
+                     ActiveIndex < ActiveCount;
+                     ++ActiveIndex)
                 {
-                    ++FirstActiveIndex;
-                    if (CurrentY < Edge->YEnd)
+                    edge *ActiveEdge = ActiveEdges[ActiveIndex];
+                    
+                    if (CurrentY > ActiveEdge->YEnd)
                     {
-                        ActiveEdges[ActiveCount++] = Edge;
+                        ActiveEdges[ActiveIndex] = 0;
+                        ++RemoveCount;
+                    }
+                    else
+                    {
+                        f32 Diff = CurrentY - ActiveEdge->YStart;
+                        ActiveEdge->XIntersection = ActiveEdge->XStart + ActiveEdge->Slope * Diff;
+                        
+                        if (RemoveCount)
+                        {
+                            ActiveEdges[ActiveIndex - RemoveCount] = ActiveEdge;
+                        }
                     }
                 }
-                else
+                
+                ActiveCount -= RemoveCount;
+            }
+            
+            // add edges that are now active
+            {
+                for (u32 Index = FirstActiveIndex;
+                     Index < SortedCount;
+                     ++Index)
                 {
-                    break;
+                    edge *Edge = SortedEdges[Index];
+                    
+                    if (CurrentY > Edge->YStart)
+                    {
+                        ++FirstActiveIndex;
+                        if (CurrentY <= Edge->YEnd)
+                        {
+                            f32 Diff = CurrentY - Edge->YStart;
+                            Edge->XIntersection += Edge->Slope * Diff;
+                            ActiveEdges[ActiveCount++] = Edge;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            
+            // write alpha values
+            if (ActiveCount)
+            {
+                Skip = false;
+                // There should never be an uneven amount of lines, I think?
+                Assert((ActiveCount % 2) == 0);
+                
+                // TODO(Tony): I'm sure some other type of sorting is much better here. But thats only relevant for optimization phase.
+                SortEdgesX(ActiveEdges, ActiveCount);
+                
+                // TODO(Tony): Only supports OddEven fill at the moment.
+                // TODO(Tony): Add WindingFill
+                for(s32 ActiveIndex = 0;
+                    ActiveIndex < ActiveCount - 1;
+                    ActiveIndex += 2)
+                {
+                    f32 FStart = ActiveEdges[ActiveIndex]->XIntersection;
+                    f32 FEnd = ActiveEdges[ActiveIndex + 1]->XIntersection;
+                    
+                    FStart = FStart >= 0.f ? FStart : 0.f;
+                    FEnd = FEnd < (f32)Buffer->Width ? FEnd : (f32)Buffer->Width - 1;
+                    
+                    s32 Start = (s32)FStart;
+                    s32 End = (s32)FEnd;
+                    
+                    AlphaStart = Start < AlphaStart ? Start : AlphaStart;
+                    AlphaEnd = End > AlphaEnd ? End : AlphaEnd;
+                    
+                    // 0 - Alpha for the first pixel
+                    // 1 - Alpha for all the pixels between first and last
+                    // 2 - Alpha for the last pixel
+                    f32 Alphas[3] =
+                    {
+                        (1.0f - (FStart - (f32)Start)),
+                        A,
+                        FEnd - (f32)End,
+                    };
+                    
+                    s32 IndexDivisor = 0;
+                    s32 TestIndex = 0;
+                    
+                    // Check if were only writing 1 or 2 alphas
+                    {
+                        s32 FillDist = (End - Start) + 1;
+                        if (FillDist == 1)
+                        {
+                            f32 RemainingAlpha = Alphas[2] - (1.0f - Alphas[0]);
+                            Alphas[1] = RemainingAlpha;
+                            IndexDivisor = 1;
+                            TestIndex = 1;
+                            
+                        }
+                        else if (FillDist == 2)
+                        {
+                            Alphas[1] = Alphas[2] * A;
+                            IndexDivisor = 1;
+                        }
+                        else
+                        {
+                            IndexDivisor = FillDist - 2;
+                            TestIndex = IndexDivisor - 1;
+                        }
+                        
+                        Alphas[0] *= A;
+                        Alphas[2] *= A;
+                    }
+                    
+#if 0
+                    
+                    Alphas[0] *= Alphas[0];
+                    Alphas[1] *= Alphas[1];
+                    Alphas[2] *= Alphas[2];
+#endif
+                    
+                    u8 Alphas8[3] = 
+                    {
+                        (u8)(Alphas[0] * AlphaPerStep * 255.f),
+                        (u8)(Alphas[1] * AlphaPerStep * 255.f),
+                        (u8)(Alphas[2] * AlphaPerStep * 255.f),
+                    };
+                    
+                    // Blend and write alphas
+                    for (s32 BufferIndex = Start;
+                         BufferIndex <= End;
+                         ++BufferIndex)
+                    {
+                        s32 AlphaIndex = TestIndex++ / IndexDivisor;
+                        
+                        AlphaBuffer[BufferIndex] += Alphas8[AlphaIndex]; 
+                    }
                 }
             }
         }
         
         // skip if no edges are active.
-        if (ActiveCount == 0)
+        if (!Skip)
         {
-            continue;
-        }
-        
-        // There should never be an uneven amount of lines
-        //Assert((ActiveCount % 2) == 0);
-        
-        
-        SortEdgesX(ActiveEdges, ActiveCount);
-        
-        // Draw
-        // TODO(Tony): Finish OddEvenFill
-        // TODO(Tony): Add WindingFill
-        for(u32 Index = 0;
-            Index < ActiveCount - 1;
-            Index += 2)
-        {
-            u32 FirstIndex = Index;
-            u32 NextIndex = Index + 1;
-            u32 Start = (u32)ActiveEdges[FirstIndex]->XIntersection;
-            u32 End = (u32)ActiveEdges[NextIndex]->XIntersection; 
-            
-            End = End < Buffer->Width ? End : Buffer->Width;
-            Start = Start >= 0 ? Start : 0;
-            
-            for(u32 X = Start;
-                X <= End;
-                ++X)
+            // Blend and write pixels
+            for (s32 RowIndex = AlphaStart;
+                 RowIndex <= AlphaEnd;
+                 ++RowIndex)
             {
+                u32 *PixelPtrA = PixelRow + RowIndex;
                 
-                u32 *PixelPtrA = PixelRow + X;
-                *PixelPtrA = 0xFFFFFFFF;
-            }
-        }
-        
-        
-        //calculate next X intersection and remove lines that are not active anymore
-        {
-            f32 NextY = CurrentY + 1.0f;
-            u32 RemoveCount = 0;
-            for (u32 ActiveIndex = 0;
-                 ActiveIndex < ActiveCount;
-                 ++ActiveIndex)
-            {
-                edge *ActiveEdge = ActiveEdges[ActiveIndex];
+                u32 PixelColor = *PixelPtrA;
+                f32 PR = ((PixelColor >> 16) & 0xFF) / 255.f;
+                f32 PG = ((PixelColor >> 8) & 0xFF) / 255.f;
+                f32 PB = (PixelColor & 0xFF) / 255.f;
                 
-                if (NextY > ActiveEdge->YEnd)
-                {
-                    ActiveEdges[ActiveIndex] = 0;
-                    ++RemoveCount;
-                }
-                else
-                {
-                    ActiveEdge->XIntersection += ActiveEdge->Slope;
-                    if (RemoveCount)
-                    {
-                        ActiveEdges[ActiveIndex - RemoveCount] = ActiveEdge;
-                    }
-                }
+                f32 Alpha = ((f32)AlphaBuffer[RowIndex]) / 255.f;
+                AlphaBuffer[RowIndex] = 0;
+                
+                f32 NewR = Lerp(PR, Alpha, R);
+                f32 NewG = Lerp(PG, Alpha, G);
+                f32 NewB = Lerp(PB, Alpha, B);
+                
+                u32 NewColor = ((((u32)(NewR * 255.f) & 0xFF) << 16) |
+                                (((u32)(NewG * 255.f) & 0xFF) << 8)  |
+                                ((u32)(NewB * 255.f) & 0xFF));
+                
+                *PixelPtrA = NewColor;
             }
-            
-            ActiveCount -= RemoveCount;
         }
         
         //end if no edges are left
@@ -1071,114 +1030,6 @@ DrawShape(game_buffer *Buffer, edge **SortedEdges, edge **ActiveEdges, u32 Sorte
         }
     }
 }
-
-void
-ScanlineFill(game_buffer *Buffer, game_memory *Memory)
-{
-    v2 Start = V2(0,0);
-    v2 End = V2(4,4);
-    
-    v2 Points[32] = 
-    {
-        V2(0,1)*Buffer->MetersToPixels,
-        V2(2,0)*Buffer->MetersToPixels,
-        V2(4,1)*Buffer->MetersToPixels,
-    };
-    u32 PointCount = 3;
-    
-    Start *= Buffer->MetersToPixels;
-    End *= Buffer->MetersToPixels;
-    
-    if(1)
-    {
-        f32 XCount = Absolute(End.x - Start.x);
-        f32 YCount = Absolute(End.y - Start.y);
-        u8 *Pixels = (u8 *)Buffer->Memory;
-        
-        f32 MinX = (Minimum(Start.x, End.x));
-        f32 MaxX = (Maximum(Start.x, End.x));
-        f32 MinY = (Minimum(Start.y, End.y));
-        f32 MaxY = (Maximum(Start.y, End.y));
-        
-        if(MinX < 0)
-        {
-            MinX = 0;
-        }
-        
-        if(MinY < 0)
-        {
-            MinY = 0;
-        }
-        
-        if(MaxX > (s32)Buffer->Width)
-        {
-            MaxX = (f32)Buffer->Width;
-        }
-        
-        if(MaxY > (s32)Buffer->Height)
-        {
-            MaxY = (f32)Buffer->Height;
-        }
-        
-        
-        for(s32 Y = (s32)MinY;
-            Y < MaxY;
-            ++Y)
-        {
-            v2 Scand = V2(0, 1);
-            v2 ScanP = V2(0,Start.y + Y);
-            
-            f32 Hits[32] = {};
-            u32 HitCount = 0;
-            
-            for(u32 PointIndex = 0;
-                PointIndex < PointCount;
-                ++PointIndex)
-            {
-                u32 NextPointIndex = (PointIndex + 1) % PointCount;
-                v2 AB = Points[NextPointIndex] - Points[PointIndex];
-                f32 Slope = Scand.x - (AB.x / (Scand.y - AB.y));
-                f32 HitX = Points[PointIndex].x + (ScanP.y - Points[PointIndex].y) * Slope;
-                if((Y >= Points[PointIndex].y) ^ (Y >= Points[NextPointIndex].y))
-                {
-                    Hits[HitCount++] = HitX;
-                }
-            }
-            
-            
-            u32 HitIndex = 0;
-            b32 IsInside = 0;
-            
-            for(s32 X = (s32)MinX;
-                X < (s32)MaxX;
-                ++X)
-            {
-                v2 PixelP = V2i(X, Y);
-                v2 Pixeld = PixelP - Start;
-                
-                
-                u32 *PixelPtrA = (u32 *)((u8 *)Pixels + 
-                                         (u32)PixelP.x*sizeof(u32) +
-                                         (u32)PixelP.y*Buffer->Pitch);
-                
-                if(HitIndex < HitCount)
-                {
-                    if(X >= Hits[HitIndex])
-                    {
-                        ++HitIndex;
-                        IsInside = !IsInside;
-                    }
-                    
-                }
-                
-                if(IsInside)
-                    *PixelPtrA = 0xFFFFFFFF;
-            }
-            
-        }
-    }
-}
-#endif
 
 #define ASTEROIDS_RENDER_H
 #endif

@@ -14,7 +14,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         1,2,3,4,
     };
     
-    
     PlatformAddWorkQueueEntry = Memory->PlatformAddWorkQueueEntry;
     PlatformDoNextWorkQueueEntry = Memory->PlatformDoNextWorkQueueEntry;
     PlatformCompleteAllWorkQueueWork = Memory->PlatformCompleteAllWorkQueueWork;
@@ -132,8 +131,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Spawns[15] = V2(13.0f,OverY);
         Spawns[16] = V2(7.0f,OverY);
         
-#if 0
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
+#if 0
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
         CreateAsteroid(GameState, TranState->Assets, World, Chunk, AsteroidType_Big, (RandomValue() % 1 + 0.5f));
@@ -165,8 +164,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Esc = false;
     }
     
-    temporary_memory TempMem = BeginTemporaryMemory(&TranState->TranArena);
     
+    
+    temporary_memory TempMem = BeginTemporaryMemory(&TranState->TranArena);
+    Assert(TempMem.Arena);
     
     ResetBufferBlack(GameBuffer);
     
@@ -178,6 +179,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         World->BulletCooldown = 0.0f;
     }
     world_chunk *CameraChunk = GetWorldChunk(World, GameState->CameraEntity.Chunk);
+    
     //~ UPDATE VELOCITY
     for(u32 TestEntityIndex = 0;
         TestEntityIndex < CameraChunk->EntityCount;
@@ -194,7 +196,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     v2 PlayerddP = {};
                     f32 PlayerSpeed = 5.0f; // m/s^2
                     f32 Multiplier = 38.0f;
-                    f32 RotationSpeed = 7.6f;
+                    f32 RotationSpeed = 5.6f;
+                    
+                    
+#if 0                    
+                    PlayerSpeed = 1.0f;
+                    RotationSpeed = 0.6f;
+                    Multiplier = 2.f;
+#endif
                     
                     if(Input->KeyboardInput->Space.EndedDown)
                     {
@@ -229,34 +238,33 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     
                     f32 Boost = 14.0f;
                     
-                    if(TestEntity->P.x < 3.0f)
+                    f32 ForceFieldWidth = .1f;
+                    if(TestEntity->P.x < ForceFieldWidth)
                     {
-                        TestEntity->ddP += Boost*V2(3.0f - Absolute(TestEntity->P.x), 0.0f);
+                        TestEntity->ddP += Boost*V2(ForceFieldWidth - Absolute(TestEntity->P.x), 0.0f);
                     }
-                    f32 Val = 3.0f;
-                    if(TestEntity->P.x > GameState->GameWorld->ChunkDim.x - Val)
+                    if(TestEntity->P.x > GameState->GameWorld->ChunkDim.x - ForceFieldWidth)
                     {
                         
                         TestEntity->ddP -=
-                            Boost*V2(TestEntity->P.x - (GameState->GameWorld->ChunkDim.x - Val), 0.0f);
+                            Boost*V2(TestEntity->P.x - (GameState->GameWorld->ChunkDim.x - ForceFieldWidth), 0.0f);
                     }
                     
-                    if(TestEntity->P.y < 3.0f)
+                    if(TestEntity->P.y < ForceFieldWidth)
                     {
-                        TestEntity->ddP += Boost*V2(0.0f, 3.0f - Absolute(TestEntity->P.y));
+                        TestEntity->ddP += Boost*V2(0.0f, ForceFieldWidth - Absolute(TestEntity->P.y));
                     }
                     
-                    if(TestEntity->P.y > GameState->GameWorld->ChunkDim.y - 3.0f)
+                    if(TestEntity->P.y > GameState->GameWorld->ChunkDim.y - ForceFieldWidth)
                     {
                         TestEntity->ddP -= 
-                            Boost*V2(0.0f, TestEntity->P.y - (GameState->GameWorld->ChunkDim.y - 3.0f));
+                            Boost*V2(0.0f, TestEntity->P.y - (GameState->GameWorld->ChunkDim.y - ForceFieldWidth));
                     }
                 } break;
             }
         }
     }
     
-    entity *Asteroid = 0;
     u32 CurrentEntityCount = 0;
     //~ MOVE ENTITIES
     for(u32 TestEntityIndex = 0;
@@ -278,8 +286,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 case EntityType_Asteroid:
                 {
                     MoveAsteroid(GameState,TranState->Assets, World, CameraChunk, TestEntity->EntityID, dt);
-                    TestEntity->P = V2(5,5);
-                    Asteroid = TestEntity;
                 }break;
                 
                 case EntityType_Bullet:
@@ -295,6 +301,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
+    
     if (PlayerEntity)
     {
         //entity *Entity = Asteroid;
@@ -309,7 +316,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         //TempEntity.Basis.Angle = 5.9f;
         
-        CreateMmozeiko(TempMem, &TempEntity, GameBuffer);
+        //CreateMmozeiko(TempMem, &TempEntity, GameBuffer);
     }
     
     //~ RENDER
@@ -324,14 +331,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         switch(TestEntity->EntityType)
         {
             case EntityType_Bullet:
-            //case EntityType_Player:
-            //case EntityType_Asteroid:
+            case EntityType_Player:
             {
                 TestEntityLineMesh = GetLineMesh(TranState->Assets, TestEntity->GameAssetID);
                 if(TestEntityLineMesh)
                 {
                     
-#if 1
                     for(u32 LineIndex = 0;
                         LineIndex < TestEntityLineMesh->LineCount;
                         ++LineIndex)
@@ -347,9 +352,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                  LineWidth);
                         
                     }
-#endif
                 }
             } break;
+            
+            
+            case EntityType_Asteroid:
+            {
+                TestEntityLineMesh = GetLineMesh(TranState->Assets, TestEntity->GameAssetID);
+                if(TestEntityLineMesh)
+                {
+                    
+                    
+                    DrawLineMeshEntity(&TempMem, GameBuffer, TestEntityLineMesh, TestEntity);
+                    
+                    
+                }
+            } break;
+            
             case EntityType_Sprite:
             {
                 loaded_bitmap *Bitmap = GetBitmap(TranState->Assets, GAI_A);

@@ -846,7 +846,7 @@ Length(v2 Vector)
 f32
 Lerp(f32 A, f32 t, f32 B)
 {
-    f32 Result = (1.0f - t)*A + t*B;
+    f32 Result = A*(1.0f - t) + B*t;
     
     return Result;
 }
@@ -854,7 +854,9 @@ Lerp(f32 A, f32 t, f32 B)
 v2
 Lerp(v2 A, f32 t, v2 B)
 {
-    v2  Result = (1.0f - t)*A + t*B;
+    v2 Result;
+    Result.x = Lerp(A.x, t, B.x);
+    Result.y = Lerp(A.y, t, B.y);
     
     return Result;
 }
@@ -862,7 +864,11 @@ Lerp(v2 A, f32 t, v2 B)
 v4
 Lerp(v4 A, f32 t, v4 B)
 {
-    v4  Result = (1.0f - t)*A + t*B;
+    v4 Result;
+    Result.r = Lerp(A.r, t, B.r);
+    Result.g = Lerp(A.g, t, B.g);
+    Result.b = Lerp(A.b, t, B.b);
+    Result.a = Lerp(A.a, t, B.a);
     
     return Result;
 }

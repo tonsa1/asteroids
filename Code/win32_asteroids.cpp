@@ -8,6 +8,7 @@
 global_variable b32 GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable s64 GlobalPerfCountFrequency;
+global_variable WINDOWPLACEMENT GlobalWindowPlacement = {sizeof(GlobalWindowPlacement)};
 
 internal void
 DEBUGPlatformFreeFileMemory(void *Memory)
@@ -371,6 +372,7 @@ WinMain(HINSTANCE Instance,
         LPSTR CommandLine,
         int ShowCode)
 {
+    
     win32_thread_info ThreadInfo[10];
     u32 ThreadCount = ArrayCount(ThreadInfo);
     
@@ -413,7 +415,7 @@ WinMain(HINSTANCE Instance,
     WindowClass.lpszClassName = "Handmade Asteroids";
     
     f32 TargetFramesPerSecond = 60.0f;
-    f32 TargetMS = 1000.0f*(1.0f / 60.0f);
+    f32 TargetMS = 1000.0f*(1.0f / TargetFramesPerSecond);
     b32 LockedFPS = false;
     f32 InverseMS = 1.0f / 1000.0f;
     if(RegisterClassA(&WindowClass))
@@ -435,6 +437,17 @@ WinMain(HINSTANCE Instance,
         
         if(Window)
         {
+            MONITORINFO MonitorInfo = {sizeof(MonitorInfo)};
+            if(GetWindowPlacement(Window, &GlobalWindowPlacement) &&
+               GetMonitorInfo(MonitorFromWindow(Window, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
+            {
+                SetWindowPos(Window, HWND_TOP,
+                             ((MonitorInfo.rcMonitor.right -  MonitorInfo.rcMonitor.left) / 2) - (ScreenDimensionX / 2),
+                             ((MonitorInfo.rcMonitor.bottom -  MonitorInfo.rcMonitor.top) / 2) - (ScreenDimensionY / 2),
+                             ScreenDimensionX,
+                             ScreenDimensionY,
+                             SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            }
             
             game_controller_input KeyboardInput = {};
             game_input GameInput = {};
